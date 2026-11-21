@@ -60,7 +60,12 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void })
         <div className="absolute inset-0 bg-gradient-to-t from-[#080a0c] via-[#080a0c]/75 to-[#080a0c]/40" />
       </div>
       <section className="relative z-10 mx-auto flex w-full max-w-[1440px] flex-col lg:min-h-screen lg:flex-row">
-        <div className="flex flex-1 flex-col justify-between px-6 py-7 sm:px-10 lg:px-16 lg:py-10">
+        <div className="pointer-events-none absolute inset-y-0 left-0 hidden w-[calc(100%-480px)] overflow-hidden lg:block">
+          <Image src="/images/ibstreaming-hero.png" alt="" fill priority className="object-cover object-[center_42%] opacity-55" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#080a0c]/20 via-[#080a0c]/45 to-[#080a0c]" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#080a0c] via-[#080a0c]/15 to-[#080a0c]/25" />
+        </div>
+        <div className="relative flex flex-1 flex-col justify-between px-6 py-7 sm:px-10 lg:px-16 lg:py-10">
           <a href="#inicio" aria-label="IBStreaming, início" className="inline-flex w-fit items-center gap-3">
             <span className="grid size-10 place-items-center rounded-xl bg-[#e6b85c] text-[#16130b]"><Film size={20} strokeWidth={2.2} /></span>
             <span className="text-[19px] font-semibold tracking-[.13em] text-white">IB<span className="text-[#e6b85c]">STREAMING</span></span>

@@ -89,6 +89,8 @@ button { cursor: pointer; }
   transition: border-color .18s ease, box-shadow .18s ease;
 }
 .field-dark::placeholder { color: #717779; }
+.field-dark.pl-10 { padding-left: 2.5rem; }
+.field-dark.pr-11 { padding-right: 2.75rem; }
 .field-dark:focus { border-color: #d9ae55; box-shadow: 0 0 0 3px rgba(217, 174, 85, .13); }
 
 @media (prefers-reduced-motion: reduce) {
