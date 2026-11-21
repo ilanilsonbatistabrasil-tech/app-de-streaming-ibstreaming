@@ -1,0 +1,240 @@
+'use client'
+
+import { useEffect, useMemo, useState } from 'react'
+import useSWR from 'swr'
+import Image from 'next/image'
+import type { User } from '@supabase/supabase-js'
+import { Bookmark, Check, ChevronDown, CircleHelp, Clapperboard, Film, LogOut, Menu, Play, Radio, Search, Shield, Sparkles, UserRound, X } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+import { AuthScreen } from './auth-screen'
+import { ProfilePicker } from './profile-picker'
+import { TitleCard, type TitleRecord } from './title-card'
+import { TvGuide } from './tv-guide'
+import { AdminPanel } from './admin-panel'
+import { PlayerDialog } from './player-dialog'
+
+const supabase = createClient()
+type Profile = { id: string; name: string; kids: boolean }
+type Account = { id: string; name: string; role: string; plan_id: string }
+type SavedRow = { title_id: number; added_at: string }
+type ProgressRow = { title_id: number; percent: number; updated_at: string }
+type Channel = { id: string; name: string; kids: boolean }
+type Schedule = { channel_id: string; slot: number; program: string }
+type View = 'inicio' | 'lista' | 'ao-vivo' | 'admin'
+
+const blockedReason: Record<string, string> = {
+  indisponivel: 'Este título não está disponível na sua região ou fora do período de direitos.',
+  plano: 'Seu plano atual não inclui este título.',
+  infantil: 'Este conteúdo não está disponível para o perfil infantil selecionado.',
+  pin: 'Este título exige confirmação do PIN parental.',
+}
+
+function SectionHeading({ eyebrow, title, trailing }: { eyebrow: string; title: string; trailing?: React.ReactNode }) {
+  return <div className="mb-5 flex flex-wrap items-end justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[.18em] text-[#e6b85c]">{eyebrow}</p><h2 className="mt-1.5 text-xl font-semibold tracking-tight text-white">{title}</h2></div>{trailing}</div>
+}
+
+function EmptyState({ title, description }: { title: string; description: string }) {
+  return <div className="rounded-2xl border border-dashed border-white/10 bg-white/[.015] px-5 py-14 text-center"><CircleHelp size={25} className="mx-auto text-white/25" /><p className="mt-4 text-sm font-medium text-white/70">{title}</p><p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-white/40">{description}</p></div>
+}
+
+export function StreamingApp() {
+  const [view, setView] = useState<View>('inicio')
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [playerAuthorized, setPlayerAuthorized] = useState(false)
+  const [query, setQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+  const [type, setType] = useState('')
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [notice, setNotice] = useState('')
+  const [noticeTone, setNoticeTone] = useState<'error' | 'success'>('error')
+  const [playerTitle, setPlayerTitle] = useState<TitleRecord | null>(null)
+  const { data: user, isLoading: authLoading, error: authError, mutate: refreshUser } = useSWR<User | null>('ibstreaming-user', async () => {
+    const { data, error } = await supabase.auth.getUser()
+    if (error) throw error
+    return data.user
+  })
+  const userId = user?.id
+  const { data: account } = useSWR<Account | null>(userId ? ['account', userId] : null, async () => {
+    const { data, error } = await supabase.from('accounts').select('id,name,role,plan_id').eq('id', userId).maybeSingle()
+    if (error) return null
+    return data
+  })
+  const { data: profiles = [], mutate: refreshProfiles } = useSWR<Profile[]>(userId ? ['profiles', userId] : null, async () => {
+    const { data, error } = await supabase.from('profiles').select('id,name,kids').order('created_at')
+    if (error) throw error
+    return data ?? []
+  })
+  const { data: catalog = [], isLoading: catalogLoading, error: catalogError } = useSWR<TitleRecord[]>(profile ? ['catalog', profile.id, debouncedQuery, type] : null, async () => {
+    const { data, error } = await supabase.rpc('get_catalog', { p_profile: profile!.id, p_region: 'BR', p_q: debouncedQuery || null, p_type: type || null })
+    if (error) throw error
+    return (data ?? []) as TitleRecord[]
+  }, { keepPreviousData: true })
+  const { data: savedRows = [], mutate: refreshSaved } = useSWR<SavedRow[]>(profile ? ['saved', profile.id] : null, async () => {
+    const { data, error } = await supabase.from('my_list').select('title_id,added_at').eq('profile_id', profile!.id).order('added_at', { ascending: false })
+    if (error) throw error
+    return data ?? []
+  })
+  const { data: progressRows = [], mutate: refreshProgress } = useSWR<ProgressRow[]>(profile ? ['progress', profile.id] : null, async () => {
+    const { data, error } = await supabase.from('progress').select('title_id,percent,updated_at').eq('profile_id', profile!.id).order('updated_at', { ascending: false })
+    if (error) throw error
+    return data ?? []
+  })
+  const { data: channels = [] } = useSWR<Channel[]>(userId ? 'channels' : null, async () => {
+    const { data, error } = await supabase.from('channels').select('id,name,kids').order('name')
+    if (error) throw error
+    return data ?? []
+  })
+  const { data: schedule = [] } = useSWR<Schedule[]>(userId ? 'channel-schedule' : null, async () => {
+    const { data, error } = await supabase.from('channel_schedule').select('channel_id,slot,program').order('slot')
+    if (error) throw error
+    return data ?? []
+  })
+  const savedIds = useMemo(() => savedRows.map((row) => row.title_id), [savedRows])
+  const progressById = useMemo(() => new Map(progressRows.map((row) => [row.title_id, row.percent])), [progressRows])
+  const titleMap = useMemo(() => new Map(catalog.map((item) => [item.id, item])), [catalog])
+  const savedTitles = useMemo(() => savedIds.map((id) => titleMap.get(id)).filter((item): item is TitleRecord => Boolean(item) && (!profile?.kids || item!.age <= 10)), [savedIds, titleMap, profile?.kids])
+  const continueTitles = useMemo(() => progressRows.filter((row) => row.percent > 0 && row.percent < 100).map((row) => titleMap.get(row.title_id)).filter((item): item is TitleRecord => Boolean(item) && (!profile?.kids || item!.age <= 10)), [progressRows, titleMap, profile?.kids])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 250)
+    return () => window.clearTimeout(timer)
+  }, [query])
+
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange(() => {
+      window.setTimeout(() => refreshUser(), 0)
+    })
+    return () => data.subscription.unsubscribe()
+  }, [refreshUser])
+
+  function showNotice(message: string, tone: 'error' | 'success' = 'error') {
+    setNotice(message)
+    setNoticeTone(tone)
+    window.setTimeout(() => setNotice(''), 5200)
+  }
+
+  async function signOut() {
+    await supabase.auth.signOut()
+    setProfile(null)
+    setView('inicio')
+    await refreshUser(null)
+  }
+
+  async function toggleSaved(title: TitleRecord) {
+    if (!profile) return
+    const exists = savedIds.includes(title.id)
+    const result = exists
+      ? await supabase.from('my_list').delete().eq('profile_id', profile.id).eq('title_id', title.id)
+      : await supabase.from('my_list').insert({ profile_id: profile.id, title_id: title.id })
+    if (result.error) {
+      showNotice('Não foi possível atualizar sua lista. Verifique a sessão do perfil.')
+      return
+    }
+    await refreshSaved()
+    showNotice(exists ? 'Removido da sua lista.' : 'Adicionado à sua lista.', 'success')
+  }
+
+  async function playTitle(title: TitleRecord, pin?: string) {
+    if (!profile) return
+    const { data, error } = await supabase.rpc('can_play', { p_profile: profile.id, p_title: title.id, p_region: 'BR', p_pin: pin ?? null })
+    if (error) {
+      showNotice('Não foi possível validar os direitos deste título. Tente novamente em instantes.')
+      return
+    }
+    const result = String(data ?? 'indisponivel')
+    if (result === 'ok') {
+      setPlayerTitle(title)
+      setPlayerAuthorized(true)
+      return
+    }
+    if (result === 'pin') {
+      setPlayerTitle(title)
+      setPlayerAuthorized(false)
+      return
+    }
+    showNotice(blockedReason[result] ?? `A reprodução não foi autorizada (${result}).`)
+  }
+
+  async function markWatched() {
+    if (!profile || !playerTitle) return
+    const existing = progressRows.some((row) => row.title_id === playerTitle.id)
+    const result = existing
+      ? await supabase.from('progress').update({ percent: 100, updated_at: new Date().toISOString() }).eq('profile_id', profile.id).eq('title_id', playerTitle.id)
+      : await supabase.from('progress').insert({ profile_id: profile.id, title_id: playerTitle.id, percent: 100 })
+    if (result.error) {
+      showNotice('Não foi possível salvar o progresso deste título.')
+      return
+    }
+    await refreshProgress()
+    showNotice('Progresso atualizado.', 'success')
+  }
+
+  async function verifyPin(pin: string) {
+    if (!profile || !playerTitle) return 'indisponivel'
+    const { data, error } = await supabase.rpc('can_play', { p_profile: profile.id, p_title: playerTitle.id, p_region: 'BR', p_pin: pin })
+    if (error) return 'indisponivel'
+    const result = String(data ?? 'indisponivel')
+    if (result === 'ok') setPlayerAuthorized(true)
+    return result
+  }
+
+  if (authLoading) return <main className="grid min-h-screen place-items-center bg-[#080a0c]"><div className="flex items-center gap-3 text-sm text-white/55"><span className="size-4 animate-spin rounded-full border-2 border-white/15 border-t-[#e6b85c]" />Preparando sua sessão…</div></main>
+  if (authError) return <AuthScreen onAuthenticated={() => refreshUser()} />
+  if (!user) return <AuthScreen onAuthenticated={() => refreshUser()} />
+  if (!profile) return <ProfilePicker profiles={profiles} onCreated={() => refreshProfiles()} onSelect={(selected) => { setProfile(selected); setView('inicio') }} />
+
+  const isAdmin = account?.role === 'admin'
+  const visibleChannels = profile.kids ? channels.filter((channel) => channel.kids) : channels
+  const renderCards = (items: TitleRecord[], showProgress = false) => items.length ? <div className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">{items.map((item) => <TitleCard key={item.id} title={item} progress={showProgress ? progressById.get(item.id) : undefined} saved={savedIds.includes(item.id)} onPlay={(selected) => playTitle(selected)} onToggleList={toggleSaved} />)}</div> : null
+
+  const navItems: { key: View; label: string; icon: React.ReactNode }[] = [
+    { key: 'inicio', label: 'Explorar', icon: <Clapperboard size={16} /> },
+    { key: 'lista', label: 'Minha lista', icon: <Bookmark size={16} /> },
+    { key: 'ao-vivo', label: 'Ao vivo', icon: <Radio size={16} /> },
+    ...(isAdmin ? [{ key: 'admin' as const, label: 'Admin', icon: <Shield size={16} /> }] : []),
+  ]
+
+  return <main className="min-h-screen bg-[#080a0c] text-white">
+    <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#080a0c]/90 backdrop-blur-xl">
+      <div className="mx-auto flex h-[68px] max-w-[1600px] items-center gap-5 px-4 sm:px-7 lg:px-10">
+        <a href="#inicio" onClick={(event) => { event.preventDefault(); setView('inicio') }} aria-label="IBStreaming, início" className="inline-flex shrink-0 items-center gap-2.5"><span className="grid size-8 place-items-center rounded-lg bg-[#e6b85c] text-[#16130b]"><Film size={17} /></span><span className="hidden text-[14px] font-bold tracking-[.12em] sm:inline">IB<span className="text-[#e6b85c]">STREAMING</span></span></a>
+        <nav aria-label="Navegação principal" className={`${mobileNavOpen ? 'absolute left-0 right-0 top-[68px] flex border-b border-white/[.08] bg-[#0c0f10] px-4 py-3 shadow-xl' : 'hidden'} items-center gap-1 md:static md:flex md:border-0 md:bg-transparent md:p-0 md:shadow-none`}>
+          {navItems.map((item) => <button key={item.key} type="button" onClick={() => { setView(item.key); setMobileNavOpen(false) }} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition ${view === item.key ? 'bg-white/[.08] text-white' : 'text-white/50 hover:bg-white/[.04] hover:text-white/85'}`}>{item.icon}<span>{item.label}</span></button>)}
+        </nav>
+        <button type="button" aria-label={mobileNavOpen ? 'Fechar menu' : 'Abrir menu'} onClick={() => setMobileNavOpen((open) => !open)} className="grid size-9 place-items-center rounded-lg text-white/60 hover:bg-white/[.06] md:hidden">{mobileNavOpen ? <X size={19} /> : <Menu size={19} />}</button>
+        {view === 'inicio' && <label className="ml-auto hidden w-full max-w-[250px] items-center gap-2 rounded-lg border border-white/[.08] bg-[#111416] px-3 py-2 sm:flex"><Search size={15} className="shrink-0 text-white/35" /><input aria-label="Buscar no catálogo" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar títulos..." className="w-full bg-transparent text-xs text-white outline-none placeholder:text-white/35" /></label>}
+        <div className="ml-auto flex items-center gap-2 sm:ml-0">
+          {view === 'inicio' && <button type="button" aria-label="Buscar no catálogo" onClick={() => document.getElementById('mobile-search')?.focus()} className="grid size-9 place-items-center rounded-lg text-white/60 sm:hidden"><Search size={17} /></button>}
+          <button type="button" onClick={() => setProfile(null)} className="flex items-center gap-2 rounded-lg border border-white/[.08] bg-[#111416] py-1.5 pl-1.5 pr-2.5 text-left hover:bg-white/[.07]" aria-label={`Trocar perfil, atual ${profile.name}`}><span className={`grid size-7 place-items-center rounded-md ${profile.kids ? 'bg-[#315d58]' : 'bg-[#553f3d]'}`}><UserRound size={14} /></span><span className="hidden max-w-24 truncate text-xs text-white/80 sm:block">{profile.name}</span><ChevronDown size={13} className="text-white/40" /></button>
+          <button type="button" onClick={signOut} aria-label="Sair da conta" title="Sair da conta" className="grid size-9 place-items-center rounded-lg text-white/45 transition hover:bg-white/[.06] hover:text-white"><LogOut size={17} /></button>
+        </div>
+      </div>
+      {view === 'inicio' && <label className="flex items-center gap-2 border-t border-white/[.05] bg-[#0c0f10] px-5 py-2.5 sm:hidden"><Search size={15} className="shrink-0 text-white/35" /><input id="mobile-search" aria-label="Buscar no catálogo" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar títulos..." className="w-full bg-transparent text-xs text-white outline-none placeholder:text-white/35" /></label>}
+    </header>
+
+    {notice && <div role="status" className={`fixed right-4 top-[82px] z-50 max-w-[min(420px,calc(100vw-2rem))] rounded-xl border px-4 py-3 text-sm shadow-xl ${noticeTone === 'success' ? 'border-[#6da882]/25 bg-[#102017] text-[#b8e0c1]' : 'border-[#bb7459]/25 bg-[#231411] text-[#f1bd9f]'}`}><div className="flex items-start gap-2"><span className="mt-0.5">{noticeTone === 'success' ? <Check size={15} /> : <CircleHelp size={15} />}</span><span>{notice}</span></div></div>}
+
+    {view === 'inicio' && <>
+      {!query && !type && <section className="relative isolate min-h-[440px] overflow-hidden sm:min-h-[500px] lg:min-h-[535px]">
+        <Image src="/images/ibstreaming-hero.png" alt="" fill priority sizes="100vw" className="absolute inset-0 -z-20 object-cover object-[center_42%]" />
+        <div className="absolute inset-0 -z-10 bg-gradient-to-r from-[#080a0c] via-[#080a0c]/85 to-[#080a0c]/10" /><div className="absolute inset-0 -z-10 bg-gradient-to-t from-[#080a0c] via-transparent to-[#080a0c]/15" />
+        <div className="mx-auto flex min-h-[440px] max-w-[1600px] items-end px-5 pb-10 pt-20 sm:min-h-[500px] sm:px-8 sm:pb-14 lg:min-h-[535px] lg:px-12 lg:pb-16">
+          <div className="max-w-xl"><p className="mb-4 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.22em] text-[#e6b85c]"><Sparkles size={14} />IBStreaming apresenta</p><h1 className="max-w-[540px] text-4xl font-semibold leading-[1.04] tracking-[-.04em] text-white sm:text-5xl lg:text-[62px]">Uma boa história muda tudo.</h1><p className="mt-4 max-w-md text-sm leading-6 text-white/65 sm:text-base">Descubra filmes, séries e animes feitos para o seu próximo momento inesquecível.</p><div className="mt-7 flex flex-wrap gap-3"><button type="button" onClick={() => document.getElementById('catalogo')?.scrollIntoView({ behavior: 'smooth' })} className="inline-flex h-11 items-center gap-2 rounded-lg bg-[#e6b85c] px-5 text-sm font-semibold text-[#16130b] transition hover:bg-[#f0ca76]"><Play size={16} fill="currentColor" />Explorar catálogo</button><button type="button" onClick={() => setView('ao-vivo')} className="inline-flex h-11 items-center gap-2 rounded-lg border border-white/20 bg-black/20 px-4 text-sm font-medium text-white/90 backdrop-blur transition hover:bg-white/10"><Radio size={15} />TV ao vivo</button></div></div>
+        </div>
+      </section>}
+      <section id="catalogo" className="mx-auto max-w-[1600px] px-5 pb-16 pt-7 sm:px-8 lg:px-12">
+        {!query && !type && continueTitles.length > 0 && <div className="mb-10"><SectionHeading eyebrow="Continue de onde parou" title="Retomar reprodução" />{renderCards(continueTitles, true)}</div>}
+        {!query && !type && <SectionHeading eyebrow="Feito para você" title="Explore o catálogo" trailing={<span className="text-xs text-white/40">{catalog.length} títulos</span>} />}
+        <div className="mb-6 flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Filtrar por tipo de título">{[['', 'Todos'], ['filme', 'Filmes'], ['série', 'Séries'], ['anime', 'Animes']].map(([value, label]) => <button key={value} type="button" onClick={() => setType(value)} aria-pressed={type === value} className={`shrink-0 rounded-full border px-3.5 py-2 text-xs transition ${type === value ? 'border-[#e6b85c]/40 bg-[#e6b85c]/10 text-[#f0ce82]' : 'border-white/[.08] text-white/55 hover:border-white/20 hover:text-white/85'}`}>{label}</button>)}</div>
+        {catalogError ? <EmptyState title="Não foi possível carregar o catálogo" description="A chamada get_catalog não foi concluída. Verifique a conexão, a sessão e as permissões do banco e tente novamente." /> : catalogLoading && !catalog.length ? <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">{Array.from({ length: 5 }, (_, index) => <div key={index} className="aspect-[.72] animate-pulse rounded-xl bg-[#15191b]" />)}</div> : renderCards(catalog) ?? <EmptyState title={query || type ? 'Nenhum título encontrado' : 'Seu catálogo está esperando por histórias'} description={query || type ? 'Tente ajustar a busca ou escolher outro filtro.' : 'Os títulos disponíveis para este perfil e região aparecerão aqui.'} />}
+      </section>
+    </>}
+
+    {view === 'lista' && <section className="mx-auto max-w-[1600px] px-5 pb-20 pt-9 sm:px-8 lg:px-12"><SectionHeading eyebrow="Sua coleção pessoal" title="Minha lista" trailing={<span className="text-xs text-white/40">{savedTitles.length} títulos</span>} />{savedTitles.length ? renderCards(savedTitles, true) : <EmptyState title="Sua lista ainda está vazia" description="Use o ícone de marcador nos títulos para guardar aqui o que quer assistir depois." />}</section>}
+    {view === 'ao-vivo' && <TvGuide channels={visibleChannels} schedule={schedule.filter((item) => visibleChannels.some((channel) => channel.id === item.channel_id))} onPlayChannel={(channel) => showNotice(`O canal ${channel.name} não possui uma fonte de transmissão vinculada no schema atual.`)} />}
+    {view === 'admin' && (isAdmin ? <AdminPanel /> : <section className="mx-auto max-w-3xl px-5 py-24 text-center"><Shield size={28} className="mx-auto text-[#e6b85c]" /><h1 className="mt-4 text-2xl font-semibold text-white">Acesso restrito</h1><p className="mt-2 text-sm text-white/50">Esta área está disponível apenas para contas com role admin.</p></section>)}
+
+    {playerTitle && <PlayerDialog key={playerTitle.id} title={playerTitle} initiallyAuthorized={playerAuthorized} onClose={() => setPlayerTitle(null)} onVerifyPin={verifyPin} onMarkWatched={markWatched} />}
+    <footer className="border-t border-white/[.06] px-5 py-6 sm:px-8 lg:px-12"><div className="mx-auto flex max-w-[1600px] flex-col gap-3 text-[10px] text-white/30 sm:flex-row sm:items-center sm:justify-between"><span className="flex items-center gap-2 tracking-[.12em]">IB<span className="text-[#e6b85c]/60">STREAMING</span><span className="tracking-normal">· © 2026</span></span><span>Catálogo e direitos sujeitos à disponibilidade por região.</span></div></footer>
+  </main>
+}
