@@ -22,11 +22,14 @@ type Channel = { id: string; name: string; kids: boolean }
 type Schedule = { channel_id: string; slot: number; program: string }
 type View = 'inicio' | 'lista' | 'ao-vivo' | 'admin'
 
-const blockedReason: Record<string, string> = {
-  indisponivel: 'Este título não está disponível na sua região ou fora do período de direitos.',
-  plano: 'Seu plano atual não inclui este título.',
-  infantil: 'Este conteúdo não está disponível para o perfil infantil selecionado.',
-  pin: 'Este título exige confirmação do PIN parental.',
+export type StreamResult = { status: string; video_url: string | null; credit: number | string | null }
+
+const streamMessages: Record<string, string> = {
+  plano: 'Seu plano não inclui este título',
+  infantil: 'Indisponível no perfil infantil',
+  pin: 'Digite o PIN do perfil',
+  indisponivel: 'Indisponível na sua região',
+  sem_video: 'Vídeo ainda não cadastrado',
 }
 
 function SectionHeading({ eyebrow, title, trailing }: { eyebrow: string; title: string; trailing?: React.ReactNode }) {
@@ -40,7 +43,8 @@ function EmptyState({ title, description }: { title: string; description: string
 export function StreamingApp() {
   const [view, setView] = useState<View>('inicio')
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [playerAuthorized, setPlayerAuthorized] = useState(false)
+  const [streamResult, setStreamResult] = useState<StreamResult | null>(null)
+  const [streamLoading, setStreamLoading] = useState(false)
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [type, setType] = useState('')
@@ -134,48 +138,64 @@ export function StreamingApp() {
     showNotice(exists ? 'Removido da sua lista.' : 'Adicionado à sua lista.', 'success')
   }
 
-  async function playTitle(title: TitleRecord, pin?: string) {
-    if (!profile) return
-    const { data, error } = await supabase.rpc('can_play', { p_profile: profile.id, p_title: title.id, p_region: 'BR', p_pin: pin ?? null })
-    if (error) {
-      showNotice('Não foi possível validar os direitos deste título. Tente novamente em instantes.')
-      return
+  async function requestStream(title: TitleRecord, pin: string | null = null): Promise<StreamResult> {
+    if (!profile) return { status: 'indisponivel', video_url: null, credit: null }
+    const { data, error } = await supabase.rpc('get_stream', {
+      p_profile: profile.id,
+      p_title: title.id,
+      p_region: 'BR',
+      p_pin: pin,
+    })
+    if (error) throw error
+    const row = Array.isArray(data) ? data[0] : data
+    return {
+      status: String(row?.status ?? 'indisponivel'),
+      video_url: typeof row?.video_url === 'string' ? row.video_url : null,
+      credit: row?.credit ?? null,
     }
-    const result = String(data ?? 'indisponivel')
-    if (result === 'ok') {
-      setPlayerTitle(title)
-      setPlayerAuthorized(true)
-      return
-    }
-    if (result === 'pin') {
-      setPlayerTitle(title)
-      setPlayerAuthorized(false)
-      return
-    }
-    showNotice(blockedReason[result] ?? `A reprodução não foi autorizada (${result}).`)
   }
 
-  async function markWatched() {
+  async function playTitle(title: TitleRecord) {
+    setPlayerTitle(title)
+    setStreamResult(null)
+    setStreamLoading(true)
+    try {
+      setStreamResult(await requestStream(title))
+    } catch {
+      setPlayerTitle(null)
+      showNotice('Não foi possível validar o acesso a este título. Tente novamente em instantes.')
+    } finally {
+      setStreamLoading(false)
+    }
+  }
+
+  async function verifyPin(pin: string) {
+    if (!playerTitle) return { status: 'indisponivel', video_url: null, credit: null } as StreamResult
+    setStreamLoading(true)
+    try {
+      const result = await requestStream(playerTitle, pin)
+      setStreamResult(result)
+      return result
+    } catch {
+      const result = { status: 'indisponivel', video_url: null, credit: null }
+      setStreamResult(result)
+      return result
+    } finally {
+      setStreamLoading(false)
+    }
+  }
+
+  async function saveProgress(percent: number) {
     if (!profile || !playerTitle) return
     const existing = progressRows.some((row) => row.title_id === playerTitle.id)
     const result = existing
-      ? await supabase.from('progress').update({ percent: 100, updated_at: new Date().toISOString() }).eq('profile_id', profile.id).eq('title_id', playerTitle.id)
-      : await supabase.from('progress').insert({ profile_id: profile.id, title_id: playerTitle.id, percent: 100 })
+      ? await supabase.from('progress').update({ percent, updated_at: new Date().toISOString() }).eq('profile_id', profile.id).eq('title_id', playerTitle.id)
+      : await supabase.from('progress').insert({ profile_id: profile.id, title_id: playerTitle.id, percent })
     if (result.error) {
       showNotice('Não foi possível salvar o progresso deste título.')
       return
     }
     await refreshProgress()
-    showNotice('Progresso atualizado.', 'success')
-  }
-
-  async function verifyPin(pin: string) {
-    if (!profile || !playerTitle) return 'indisponivel'
-    const { data, error } = await supabase.rpc('can_play', { p_profile: profile.id, p_title: playerTitle.id, p_region: 'BR', p_pin: pin })
-    if (error) return 'indisponivel'
-    const result = String(data ?? 'indisponivel')
-    if (result === 'ok') setPlayerAuthorized(true)
-    return result
   }
 
   if (authLoading) return <main className="grid min-h-screen place-items-center bg-[#080a0c]"><div className="flex items-center gap-3 text-sm text-white/55"><span className="size-4 animate-spin rounded-full border-2 border-white/15 border-t-[#e6b85c]" />Preparando sua sessão…</div></main>
@@ -234,7 +254,7 @@ export function StreamingApp() {
     {view === 'ao-vivo' && <TvGuide channels={visibleChannels} schedule={schedule.filter((item) => visibleChannels.some((channel) => channel.id === item.channel_id))} onPlayChannel={(channel) => showNotice(`O canal ${channel.name} não possui uma fonte de transmissão vinculada no schema atual.`)} />}
     {view === 'admin' && (isAdmin ? <AdminPanel /> : <section className="mx-auto max-w-3xl px-5 py-24 text-center"><Shield size={28} className="mx-auto text-[#e6b85c]" /><h1 className="mt-4 text-2xl font-semibold text-white">Acesso restrito</h1><p className="mt-2 text-sm text-white/50">Esta área está disponível apenas para contas com role admin.</p></section>)}
 
-    {playerTitle && <PlayerDialog key={playerTitle.id} title={playerTitle} initiallyAuthorized={playerAuthorized} onClose={() => setPlayerTitle(null)} onVerifyPin={verifyPin} onMarkWatched={markWatched} />}
+    {playerTitle && <PlayerDialog key={playerTitle.id} title={playerTitle} stream={streamResult} loading={streamLoading} message={streamResult && streamMessages[streamResult.status]} onClose={() => { setPlayerTitle(null); setStreamResult(null) }} onVerifyPin={verifyPin} onSaveProgress={saveProgress} />}
     <footer className="border-t border-white/[.06] px-5 py-6 sm:px-8 lg:px-12"><div className="mx-auto flex max-w-[1600px] flex-col gap-3 text-[10px] text-white/30 sm:flex-row sm:items-center sm:justify-between"><span className="flex items-center gap-2 tracking-[.12em]">IB<span className="text-[#e6b85c]/60">STREAMING</span><span className="tracking-normal">· © 2026</span></span><span>Catálogo e direitos sujeitos à disponibilidade por região.</span></div></footer>
   </main>
 }
