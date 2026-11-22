@@ -2,12 +2,14 @@
 
 import { useState, type FormEvent } from 'react'
 import useSWR from 'swr'
-import { BadgeCheck, Clapperboard, LoaderCircle, Save, ShieldCheck } from 'lucide-react'
+import { BadgeCheck, CalendarClock, Clapperboard, LoaderCircle, Radio, Save, ShieldCheck, Tv, Pencil, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { TitleRecord } from './title-card'
 
 type Plan = { id: string; name: string; tier: number }
 type Rights = { title_id: number; regions: string[]; starts_on: string; ends_on: string; min_plan: string }
+type Channel = { id: string; name: string; kids: boolean }
+type ChannelSchedule = { channel_id: string; slot: number; program: string }
 const supabase = createClient()
 
 export function AdminPanel() {
@@ -38,6 +40,27 @@ export function AdminPanel() {
   const [minPlan, setMinPlan] = useState('free')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
+  const { data: channels = [], mutate: refreshChannels } = useSWR<Channel[]>('admin-channels', async () => {
+    const { data, error } = await supabase.from('channels').select('id,name,kids').order('name')
+    if (error) throw error
+    return data ?? []
+  })
+  const { data: channelSchedule = [], mutate: refreshChannelSchedule } = useSWR<ChannelSchedule[]>('admin-channel-schedule', async () => {
+    const { data, error } = await supabase.from('channel_schedule').select('channel_id,slot,program').order('slot')
+    if (error) throw error
+    return data ?? []
+  })
+  const [channelId, setChannelId] = useState('')
+  const [channelName, setChannelName] = useState('')
+  const [channelKids, setChannelKids] = useState(false)
+  const [channelBusy, setChannelBusy] = useState(false)
+  const [channelNotice, setChannelNotice] = useState('')
+  const [scheduleChannelId, setScheduleChannelId] = useState('')
+  const [scheduleSlot, setScheduleSlot] = useState('12')
+  const [scheduleProgram, setScheduleProgram] = useState('')
+  const [editingScheduleSlot, setEditingScheduleSlot] = useState<string | null>(null)
+  const [scheduleBusy, setScheduleBusy] = useState(false)
+  const [scheduleNotice, setScheduleNotice] = useState('')
 
   const selectedTitle = titles.find((item) => item.id === Number(selected))
   const selectedRights = rights.find((item) => item.title_id === Number(selected))
@@ -59,6 +82,80 @@ export function AdminPanel() {
     setStartDate(next?.starts_on ?? new Date().toISOString().slice(0, 10))
     setEndDate(next?.ends_on ?? '2030-12-31')
     setMinPlan(next?.min_plan ?? 'free')
+  }
+
+  function chooseChannel(id: string) {
+    setChannelId(id)
+    const item = channels.find((channel) => channel.id === id)
+    setChannelName(item?.name ?? '')
+    setChannelKids(item?.kids ?? false)
+  }
+
+  async function saveChannel(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setChannelBusy(true)
+    setChannelNotice('')
+    const payload = { name: channelName.trim(), kids: channelKids }
+    const result = channelId
+      ? await supabase.from('channels').update(payload).eq('id', channelId)
+      : await supabase.from('channels').insert(payload)
+    setChannelBusy(false)
+    if (result.error) {
+      setChannelNotice('Não foi possível salvar o canal. Confira as permissões administrativas.')
+      return
+    }
+    setChannelNotice(channelId ? 'Canal atualizado.' : 'Canal cadastrado.')
+    setChannelId('')
+    setChannelName('')
+    setChannelKids(false)
+    await refreshChannels()
+  }
+
+  function chooseSchedule(channelIdValue: string, slot: number, program: string) {
+    setScheduleChannelId(channelIdValue)
+    setScheduleSlot(String(slot))
+    setScheduleProgram(program)
+    setEditingScheduleSlot(String(slot))
+  }
+
+  async function saveSchedule(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!scheduleChannelId) {
+      setScheduleNotice('Selecione um canal.')
+      return
+    }
+    setScheduleBusy(true)
+    setScheduleNotice('')
+    const slot = Number(scheduleSlot)
+    const payload = { channel_id: scheduleChannelId, slot, program: scheduleProgram.trim() }
+    const result = editingScheduleSlot !== null
+      ? await supabase.from('channel_schedule').update(payload).eq('channel_id', scheduleChannelId).eq('slot', Number(editingScheduleSlot))
+      : await supabase.from('channel_schedule').insert(payload)
+    setScheduleBusy(false)
+    if (result.error) {
+      setScheduleNotice('Não foi possível salvar a programação. Confira se esse horário já está cadastrado para o canal.')
+      return
+    }
+    setScheduleNotice(editingScheduleSlot !== null ? 'Programação atualizada.' : 'Programação cadastrada.')
+    setEditingScheduleSlot(null)
+    setScheduleProgram('')
+    await refreshChannelSchedule()
+  }
+
+  async function removeSchedule(channelIdValue: string, slot: number) {
+    const confirmed = window.confirm('Excluir este horário da programação?')
+    if (!confirmed) return
+    const { error } = await supabase.from('channel_schedule').delete().eq('channel_id', channelIdValue).eq('slot', slot)
+    if (error) {
+      setScheduleNotice('Não foi possível excluir este horário.')
+      return
+    }
+    if (editingScheduleSlot === String(slot) && scheduleChannelId === channelIdValue) {
+      setEditingScheduleSlot(null)
+      setScheduleProgram('')
+    }
+    setScheduleNotice('Horário removido.')
+    await refreshChannelSchedule()
   }
 
   async function saveTitle(event: FormEvent<HTMLFormElement>) {
@@ -126,5 +223,32 @@ export function AdminPanel() {
       <div className="rounded-2xl border border-white/[.08] bg-[#111416] p-5 sm:p-7"><h2 className="font-semibold text-white">Catálogo cadastrado</h2><p className="mt-1 text-xs text-white/45">{titles.length} {titles.length === 1 ? 'título' : 'títulos'}</p><div className="mt-5 flex max-h-[580px] flex-col gap-2 overflow-y-auto">{titles.map((item) => { const itemRights = rights.find((right) => right.title_id === item.id); return <button key={item.id} type="button" onClick={() => chooseTitle(String(item.id))} className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-3 text-left transition ${selected === String(item.id) ? 'border-[#e6b85c]/30 bg-[#e6b85c]/[.06]' : 'border-white/[.06] bg-[#0c0f10] hover:border-white/15'}`}><span className="min-w-0"><span className="block truncate text-sm font-medium text-white/85">{item.title}</span><span className="mt-1 block truncate text-[11px] text-white/40">{item.year} · {item.genre} · {item.type === 'serie' ? 'Série' : item.type === 'documentario' ? 'Documentário' : item.type === 'anime' ? 'Anime' : 'Filme'}</span></span><span className={`shrink-0 rounded-full px-2 py-1 text-[9px] ${itemRights ? 'bg-[#335b4a]/30 text-[#99d3ae]' : 'bg-[#71432d]/30 text-[#e7b18b]'}`}>{itemRights ? 'Com direitos' : 'Sem direitos'}</span></button> })}{!titles.length && <p className="py-12 text-center text-xs text-white/40">Ainda não há títulos.</p>}</div>
       </div>
     </div>
+
+    <section className="mt-8 grid gap-6 lg:grid-cols-2">
+      <div className="rounded-2xl border border-white/[.08] bg-[#111416] p-5 sm:p-7">
+        <div className="mb-5 flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-[#e6b85c]/10 text-[#e6b85c]"><Radio size={19} /></span><div><h2 className="font-semibold text-white">Canais de TV</h2><p className="mt-1 text-xs text-white/45">Cadastre e edite canais usando os campos existentes.</p></div></div>
+        <form onSubmit={saveChannel} className="grid gap-4">
+          <label className="flex flex-col gap-2 text-xs text-white/60">Canal para editar<select className="field-dark" value={channelId} onChange={(event) => chooseChannel(event.target.value)}><option value="">Novo canal</option>{channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}</select></label>
+          <label className="flex flex-col gap-2 text-xs text-white/60">Nome do canal<input className="field-dark" required maxLength={120} value={channelName} onChange={(event) => setChannelName(event.target.value)} placeholder="Nome do canal" /></label>
+          <label className="flex items-center gap-2 text-xs text-white/65"><input type="checkbox" checked={channelKids} onChange={(event) => setChannelKids(event.target.checked)} /> Canal adequado ao perfil infantil</label>
+          {channelNotice && <p role="status" className="text-xs text-[#e7c981]">{channelNotice}</p>}
+          <button disabled={channelBusy} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#e6b85c] text-sm font-semibold text-[#16130b] disabled:opacity-55">{channelBusy ? <LoaderCircle size={16} className="animate-spin" /> : <Save size={16} />}{channelBusy ? 'Salvando…' : channelId ? 'Salvar canal' : 'Cadastrar canal'}</button>
+        </form>
+        <div className="mt-6 flex flex-col gap-2">{channels.map((channel) => <button type="button" key={channel.id} onClick={() => chooseChannel(channel.id)} className={`flex items-center gap-3 rounded-xl border px-3 py-3 text-left ${channelId === channel.id ? 'border-[#e6b85c]/30 bg-[#e6b85c]/[.06]' : 'border-white/[.06] bg-[#0c0f10]'}`}><Tv size={17} className="text-[#e6b85c]" /><span className="min-w-0 flex-1 truncate text-sm text-white/85">{channel.name}</span><span className="text-[10px] text-white/40">{channel.kids ? 'Infantil' : 'Geral'}</span></button>)}{!channels.length && <p className="text-xs text-white/35">Nenhum canal cadastrado.</p>}</div>
+      </div>
+
+      <div className="rounded-2xl border border-white/[.08] bg-[#111416] p-5 sm:p-7">
+        <div className="mb-5 flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-[#e6b85c]/10 text-[#e6b85c]"><CalendarClock size={19} /></span><div><h2 className="font-semibold text-white">Programação dos canais</h2><p className="mt-1 text-xs text-white/45">Cadastre e edite os horários existentes (0 a 23).</p></div></div>
+        <form onSubmit={saveSchedule} className="grid gap-4">
+          <label className="flex flex-col gap-2 text-xs text-white/60">Canal<select className="field-dark" required value={scheduleChannelId} onChange={(event) => { setScheduleChannelId(event.target.value); setEditingScheduleSlot(null) }}><option value="">Selecione um canal</option>{channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}</select></label>
+          <label className="flex flex-col gap-2 text-xs text-white/60">Horário<select className="field-dark" value={scheduleSlot} onChange={(event) => { setScheduleSlot(event.target.value); setEditingScheduleSlot(null) }}>{Array.from({ length: 24 }, (_, hour) => <option key={hour} value={hour}>{String(hour).padStart(2, '0')}:00</option>)}</select></label>
+          <label className="flex flex-col gap-2 text-xs text-white/60">Programa<input className="field-dark" required maxLength={160} value={scheduleProgram} onChange={(event) => setScheduleProgram(event.target.value)} placeholder="Nome do programa" /></label>
+          {scheduleNotice && <p role="status" className="text-xs text-[#e7c981]">{scheduleNotice}</p>}
+          <button disabled={scheduleBusy || !channels.length} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#e6b85c] text-sm font-semibold text-[#16130b] disabled:opacity-55">{scheduleBusy ? <LoaderCircle size={16} className="animate-spin" /> : <Save size={16} />}{scheduleBusy ? 'Salvando…' : editingScheduleSlot !== null ? 'Salvar horário' : 'Cadastrar horário'}</button>
+          {editingScheduleSlot !== null && <button type="button" onClick={() => { setEditingScheduleSlot(null); setScheduleProgram('') }} className="text-xs text-white/50 hover:text-white">Cancelar edição</button>}
+        </form>
+        <div className="mt-6 flex max-h-[420px] flex-col gap-2 overflow-y-auto">{channelSchedule.map((item) => <div key={item.channel_id + '-' + item.slot} className="flex items-center gap-2 rounded-xl border border-white/[.06] bg-[#0c0f10] px-3 py-3"><span className="w-12 shrink-0 text-xs text-[#e6b85c]">{String(item.slot).padStart(2, '0')}:00</span><span className="min-w-0 flex-1"><span className="block truncate text-xs text-white/85">{item.program}</span><span className="block truncate text-[10px] text-white/35">{channels.find((channel) => channel.id === item.channel_id)?.name ?? 'Canal'}</span></span><button type="button" title="Editar horário" onClick={() => chooseSchedule(item.channel_id, item.slot, item.program)} className="grid size-8 place-items-center rounded-lg text-white/50 hover:bg-white/[.07] hover:text-white"><Pencil size={14} /></button><button type="button" title="Excluir horário" onClick={() => removeSchedule(item.channel_id, item.slot)} className="grid size-8 place-items-center rounded-lg text-white/50 hover:bg-red-500/10 hover:text-red-300"><Trash2 size={14} /></button></div>)}{!channelSchedule.length && <p className="text-xs text-white/35">Nenhum horário cadastrado.</p>}</div>
+      </div>
+    </section>
   </section>
 }
