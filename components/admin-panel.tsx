@@ -98,7 +98,7 @@ export function AdminPanel() {
     const payload = { name: channelName.trim(), kids: channelKids }
     const result = channelId
       ? await supabase.from('channels').update(payload).eq('id', channelId)
-      : await supabase.from('channels').insert(payload)
+      : await supabase.from('channels').insert({ id: crypto.randomUUID(), ...payload })
     setChannelBusy(false)
     if (result.error) {
       setChannelNotice('Não foi possível salvar o canal. Confira as permissões administrativas.')
