@@ -8,7 +8,7 @@ import type { TitleRecord } from './title-card'
 
 type Plan = { id: string; name: string; tier: number }
 type Rights = { title_id: number; regions: string[]; starts_on: string; ends_on: string; min_plan: string }
-type Channel = { id: string; name: string; kids: boolean }
+type Channel = { id: string; name: string; kids: boolean; stream_url: string | null }
 type ChannelSchedule = { channel_id: string; slot: number; program: string }
 const supabase = createClient()
 
@@ -41,7 +41,7 @@ export function AdminPanel() {
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const { data: channels = [], mutate: refreshChannels } = useSWR<Channel[]>('admin-channels', async () => {
-    const { data, error } = await supabase.from('channels').select('id,name,kids').order('name')
+    const { data, error } = await supabase.from('channels').select('id,name,kids,stream_url').order('name')
     if (error) throw error
     return data ?? []
   })
@@ -53,6 +53,7 @@ export function AdminPanel() {
   const [channelId, setChannelId] = useState('')
   const [channelName, setChannelName] = useState('')
   const [channelKids, setChannelKids] = useState(false)
+  const [channelStreamUrl, setChannelStreamUrl] = useState('')
   const [channelBusy, setChannelBusy] = useState(false)
   const [channelNotice, setChannelNotice] = useState('')
   const [scheduleChannelId, setScheduleChannelId] = useState('')
@@ -89,13 +90,14 @@ export function AdminPanel() {
     const item = channels.find((channel) => channel.id === id)
     setChannelName(item?.name ?? '')
     setChannelKids(item?.kids ?? false)
+    setChannelStreamUrl(item?.stream_url ?? '')
   }
 
   async function saveChannel(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setChannelBusy(true)
     setChannelNotice('')
-    const payload = { name: channelName.trim(), kids: channelKids }
+    const payload = { name: channelName.trim(), kids: channelKids, stream_url: channelStreamUrl.trim() || null }
     const result = channelId
       ? await supabase.from('channels').update(payload).eq('id', channelId)
       : await supabase.from('channels').insert({ id: crypto.randomUUID(), ...payload })
@@ -108,6 +110,7 @@ export function AdminPanel() {
     setChannelId('')
     setChannelName('')
     setChannelKids(false)
+    setChannelStreamUrl('')
     await refreshChannels()
   }
 
@@ -230,6 +233,8 @@ export function AdminPanel() {
         <form onSubmit={saveChannel} className="grid gap-4">
           <label className="flex flex-col gap-2 text-xs text-white/60">Canal para editar<select className="field-dark" value={channelId} onChange={(event) => chooseChannel(event.target.value)}><option value="">Novo canal</option>{channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}</select></label>
           <label className="flex flex-col gap-2 text-xs text-white/60">Nome do canal<input className="field-dark" required maxLength={120} value={channelName} onChange={(event) => setChannelName(event.target.value)} placeholder="Nome do canal" /></label>
+          <label className="flex flex-col gap-2 text-xs text-white/60">URL da transmissão ao vivo<input className="field-dark" type="url" value={channelStreamUrl} onChange={(event) => setChannelStreamUrl(event.target.value)} placeholder="https://servidor.com/transmissao.m3u8" /></label>
+          <p className="-mt-2 text-[10px] leading-4 text-white/35">Use uma URL de transmissão autorizada e compatível com o navegador. Streams HLS (.m3u8) podem exigir suporte adicional no navegador.</p>
           <label className="flex items-center gap-2 text-xs text-white/65"><input type="checkbox" checked={channelKids} onChange={(event) => setChannelKids(event.target.checked)} /> Canal adequado ao perfil infantil</label>
           {channelNotice && <p role="status" className="text-xs text-[#e7c981]">{channelNotice}</p>}
           <button disabled={channelBusy} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#e6b85c] text-sm font-semibold text-[#16130b] disabled:opacity-55">{channelBusy ? <LoaderCircle size={16} className="animate-spin" /> : <Save size={16} />}{channelBusy ? 'Salvando…' : channelId ? 'Salvar canal' : 'Cadastrar canal'}</button>
