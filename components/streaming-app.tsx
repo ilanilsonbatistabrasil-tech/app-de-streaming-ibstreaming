@@ -18,7 +18,7 @@ type Profile = { id: string; name: string; kids: boolean }
 type Account = { id: string; name: string; role: string; plan_id: string }
 type SavedRow = { title_id: number; added_at: string }
 type ProgressRow = { title_id: number; percent: number; updated_at: string }
-type Channel = { id: string; name: string; kids: boolean }
+type Channel = { id: string; name: string; kids: boolean; stream_url: string | null }
 type Schedule = { channel_id: string; slot: number; program: string }
 type View = 'inicio' | 'lista' | 'ao-vivo' | 'admin'
 
@@ -52,6 +52,7 @@ export function StreamingApp() {
   const [notice, setNotice] = useState('')
   const [noticeTone, setNoticeTone] = useState<'error' | 'success'>('error')
   const [playerTitle, setPlayerTitle] = useState<TitleRecord | null>(null)
+  const [playerChannel, setPlayerChannel] = useState<Channel | null>(null)
   const { data: user, isLoading: authLoading, error: authError, mutate: refreshUser } = useSWR<User | null>('ibstreaming-user', async () => {
     const { data, error } = await supabase.auth.getUser()
     if (error) throw error
@@ -84,7 +85,7 @@ export function StreamingApp() {
     return data ?? []
   })
   const { data: channels = [] } = useSWR<Channel[]>(userId ? 'channels' : null, async () => {
-    const { data, error } = await supabase.from('channels').select('id,name,kids').order('name')
+    const { data, error } = await supabase.from('channels').select('id,name,kids,stream_url').order('name')
     if (error) throw error
     return data ?? []
   })
@@ -251,9 +252,10 @@ export function StreamingApp() {
     </>}
 
     {view === 'lista' && <section className="mx-auto max-w-[1600px] px-5 pb-20 pt-9 sm:px-8 lg:px-12"><SectionHeading eyebrow="Sua coleção pessoal" title="Minha lista" trailing={<span className="text-xs text-white/40">{savedTitles.length} títulos</span>} />{savedTitles.length ? renderCards(savedTitles, true) : <EmptyState title="Sua lista ainda está vazia" description="Use o ícone de marcador nos títulos para guardar aqui o que quer assistir depois." />}</section>}
-    {view === 'ao-vivo' && <TvGuide channels={visibleChannels} schedule={schedule.filter((item) => visibleChannels.some((channel) => channel.id === item.channel_id))} onPlayChannel={(channel) => showNotice(`O canal ${channel.name} não possui uma fonte de transmissão vinculada no schema atual.`)} />}
+    {view === 'ao-vivo' && <TvGuide channels={visibleChannels} schedule={schedule.filter((item) => visibleChannels.some((channel) => channel.id === item.channel_id))} onPlayChannel={(channel) => { if (!channel.stream_url) { showNotice(`O canal ${channel.name} ainda não possui uma URL de transmissão cadastrada.`); return } setPlayerChannel(channel) }} />}
     {view === 'admin' && (isAdmin ? <AdminPanel /> : <section className="mx-auto max-w-3xl px-5 py-24 text-center"><Shield size={28} className="mx-auto text-[#e6b85c]" /><h1 className="mt-4 text-2xl font-semibold text-white">Acesso restrito</h1><p className="mt-2 text-sm text-white/50">Esta área está disponível apenas para contas com role admin.</p></section>)}
 
+    {playerChannel && <div role="presentation" className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setPlayerChannel(null) }}><section role="dialog" aria-modal="true" aria-labelledby="live-player-title" className="w-full max-w-5xl overflow-hidden rounded-2xl border border-white/10 bg-[#101315] shadow-2xl"><header className="flex items-center justify-between border-b border-white/[.08] px-5 py-4"><div><p className="text-[10px] font-semibold uppercase tracking-[.17em] text-[#e6b85c]">Transmissão ao vivo</p><h2 id="live-player-title" className="mt-1 text-base font-semibold text-white">{playerChannel.name}</h2></div><button type="button" onClick={() => setPlayerChannel(null)} aria-label="Fechar transmissão" className="grid size-9 place-items-center rounded-full text-white/50 hover:bg-white/[.08] hover:text-white"><X size={19} /></button></header><video key={playerChannel.id} src={playerChannel.stream_url ?? undefined} controls autoPlay playsInline preload="none" className="aspect-video w-full bg-black" /></section></div>}
     {playerTitle && <PlayerDialog key={playerTitle.id} title={playerTitle} stream={streamResult} loading={streamLoading} message={streamResult && streamMessages[streamResult.status]} onClose={() => { setPlayerTitle(null); setStreamResult(null) }} onVerifyPin={verifyPin} onSaveProgress={saveProgress} />}
     <footer className="border-t border-white/[.06] px-5 py-6 sm:px-8 lg:px-12"><div className="mx-auto flex max-w-[1600px] flex-col gap-3 text-[10px] text-white/30 sm:flex-row sm:items-center sm:justify-between"><span className="flex items-center gap-2 tracking-[.12em]">IB<span className="text-[#e6b85c]/60">STREAMING</span><span className="tracking-normal">· © 2026</span></span><span>Catálogo e direitos sujeitos à disponibilidade por região.</span></div></footer>
   </main>
