@@ -180,6 +180,8 @@ export function StreamingApp() {
   const [noticeTone, setNoticeTone] = useState<'error' | 'success'>('error')
   const [playerTitle, setPlayerTitle] = useState<TitleRecord | null>(null)
   const [playerChannel, setPlayerChannel] = useState<Channel | null>(null)
+  const [resumeAtSeconds, setResumeAtSeconds] = useState(0)
+  const restoredPlaybackKeyRef = useRef<string | null>(null)
   const { data: user, isLoading: authLoading, error: authError, mutate: refreshUser } = useSWR<User | null>('ibstreaming-user', async () => {
     const { data, error } = await supabase.auth.getUser()
     // Sem sessão é um estado normal para quem ainda não entrou; não deve
@@ -191,6 +193,7 @@ export function StreamingApp() {
     return data.user
   }, { shouldRetryOnError: false })
   const userId = user?.id
+  const playbackStorageKey = userId && profile ? `ibstreaming-playback:${userId}:${profile.id}` : null
   useEffect(() => {
     console.info('[IBStreaming login] Estado de autenticação', { loading: authLoading, hasUser: Boolean(user), hasError: Boolean(authError) })
   }, [authLoading, user, authError])
@@ -334,6 +337,8 @@ export function StreamingApp() {
 
   async function playTitle(title: TitleRecord) {
     setPlayerTitle(title)
+    setResumeAtSeconds(0)
+    if (playbackStorageKey) window.localStorage.setItem(playbackStorageKey, JSON.stringify({ titleId: title.id, currentTime: 0 }))
     setStreamResult(null)
     setStreamLoading(true)
     try {
@@ -344,6 +349,46 @@ export function StreamingApp() {
     } finally {
       setStreamLoading(false)
     }
+  }
+
+  useEffect(() => {
+    if (!playbackStorageKey || !profile || catalogLoading || restoredPlaybackKeyRef.current === playbackStorageKey) return
+
+    restoredPlaybackKeyRef.current = playbackStorageKey
+    const raw = window.localStorage.getItem(playbackStorageKey)
+    if (!raw) return
+
+    try {
+      const saved = JSON.parse(raw) as { titleId?: number; currentTime?: number }
+      const savedTitle = catalog.find((item) => item.id === Number(saved.titleId))
+      if (!savedTitle) {
+        window.localStorage.removeItem(playbackStorageKey)
+        return
+      }
+
+      const savedTime = Number(saved.currentTime)
+      setResumeAtSeconds(Number.isFinite(savedTime) && savedTime > 0 ? savedTime : 0)
+      setPlayerTitle(savedTitle)
+      setStreamResult(null)
+      setStreamLoading(true)
+      void requestStream(savedTitle).then(setStreamResult).catch(() => {
+        setPlayerTitle(null)
+        window.localStorage.removeItem(playbackStorageKey)
+        showNotice('Não foi possível retomar este vídeo. Abra o título novamente pelo catálogo.')
+      }).finally(() => setStreamLoading(false))
+    } catch {
+      window.localStorage.removeItem(playbackStorageKey)
+    }
+  }, [playbackStorageKey, profile, catalog, catalogLoading])
+
+  function savePlaybackTime(currentTime: number) {
+    if (!playbackStorageKey || !playerTitle || !Number.isFinite(currentTime)) return
+    window.localStorage.setItem(playbackStorageKey, JSON.stringify({ titleId: playerTitle.id, currentTime }))
+  }
+
+  function clearPlaybackResume() {
+    if (playbackStorageKey) window.localStorage.removeItem(playbackStorageKey)
+    setResumeAtSeconds(0)
   }
 
   async function verifyPin(pin: string) {
@@ -433,7 +478,7 @@ export function StreamingApp() {
     {view === 'admin' && (isAdmin ? <AdminPanel /> : <section className="mx-auto max-w-3xl px-5 py-24 text-center"><Shield size={28} className="mx-auto text-[#e6b85c]" /><h1 className="mt-4 text-2xl font-semibold text-white">Acesso restrito</h1><p className="mt-2 text-sm text-white/50">Esta área está disponível apenas para contas com role admin.</p></section>)}
 
     {playerChannel && <div role="presentation" className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setPlayerChannel(null) }}><section role="dialog" aria-modal="true" aria-labelledby="live-player-title" className="w-full max-w-5xl overflow-hidden rounded-2xl border border-white/10 bg-[#101315] shadow-2xl"><header className="flex items-center justify-between border-b border-white/[.08] px-5 py-4"><div><p className="text-[10px] font-semibold uppercase tracking-[.17em] text-[#e6b85c]">Transmissão ao vivo</p><h2 id="live-player-title" className="mt-1 text-base font-semibold text-white">{playerChannel.name}</h2></div><button type="button" onClick={() => setPlayerChannel(null)} aria-label="Fechar transmissão" className="grid size-9 place-items-center rounded-full text-white/50 hover:bg-white/[.08] hover:text-white"><X size={19} /></button></header><LiveChannelPlayer channel={playerChannel} onClose={() => setPlayerChannel(null)} /></section></div>}
-    {playerTitle && <PlayerDialog key={playerTitle.id} title={playerTitle} stream={streamResult} loading={streamLoading} message={streamResult && streamMessages[streamResult.status]} onClose={() => { setPlayerTitle(null); setStreamResult(null) }} onVerifyPin={verifyPin} onSaveProgress={saveProgress} />}
+    {playerTitle && <PlayerDialog key={playerTitle.id} title={playerTitle} stream={streamResult} loading={streamLoading} message={streamResult && streamMessages[streamResult.status]} initialTime={resumeAtSeconds} onClose={() => { clearPlaybackResume(); setPlayerTitle(null); setStreamResult(null) }} onVerifyPin={verifyPin} onSaveProgress={saveProgress} onSavePlaybackTime={savePlaybackTime} onClearPlayback={clearPlaybackResume} />}
     <footer className="border-t border-white/[.06] px-5 py-6 sm:px-8 lg:px-12"><div className="mx-auto flex max-w-[1600px] flex-col gap-3 text-[10px] text-white/30 sm:flex-row sm:items-center sm:justify-between"><span className="flex items-center gap-2 tracking-[.12em]">IB<span className="text-[#e6b85c]/60">STREAMING</span><span className="tracking-normal">· © 2026</span></span><span>Catálogo e direitos sujeitos à disponibilidade por região.</span></div></footer>
   </main>
 }
