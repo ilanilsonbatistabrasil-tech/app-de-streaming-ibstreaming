@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import useSWR from 'swr'
 import Image from 'next/image'
 import type { User } from '@supabase/supabase-js'
@@ -34,6 +34,95 @@ const streamMessages: Record<string, string> = {
 
 function SectionHeading({ eyebrow, title, trailing }: { eyebrow: string; title: string; trailing?: React.ReactNode }) {
   return <div className="mb-5 flex flex-wrap items-end justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[.18em] text-[#e6b85c]">{eyebrow}</p><h2 className="mt-1.5 text-xl font-semibold tracking-tight text-white">{title}</h2></div>{trailing}</div>
+}
+
+type HlsInstance = {
+  loadSource: (url: string) => void
+  attachMedia: (media: HTMLVideoElement) => void
+  on: (event: string, callback: (_event: string, data: { fatal?: boolean }) => void) => void
+  destroy: () => void
+}
+type HlsConstructor = {
+  new (config?: { enableWorker?: boolean }): HlsInstance
+  isSupported: () => boolean
+  Events: { ERROR: string }
+}
+type WindowWithHls = Window & { Hls?: HlsConstructor }
+
+function LiveChannelPlayer({ channel, onClose }: { channel: Channel; onClose: () => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const [playerMessage, setPlayerMessage] = useState('Preparando transmissão…')
+
+  useEffect(() => {
+    const video = videoRef.current
+    const source = channel.stream_url
+    if (!video || !source) return
+
+    let hls: HlsInstance | null = null
+    let cancelled = false
+    let script: HTMLScriptElement | null = null
+
+    const startPlayback = () => {
+      if (cancelled) return
+      const Hls = (window as WindowWithHls).Hls
+
+      if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = source
+        setPlayerMessage('Se a transmissão não iniciar, confira se o endereço está ativo e permite reprodução neste site.')
+        void video.play().catch(() => setPlayerMessage('Clique em reproduzir. Se não funcionar, confira o endereço e as permissões da transmissão.'))
+        return
+      }
+
+      if (Hls?.isSupported()) {
+        hls = new Hls({ enableWorker: true })
+        hls.loadSource(source)
+        hls.attachMedia(video)
+        hls.on(Hls.Events.ERROR, (_event, data) => {
+          if (data.fatal) setPlayerMessage('Falha ao carregar o canal. Verifique se a URL HLS está ativa e permite acesso pelo navegador (CORS).')
+        })
+        setPlayerMessage('Carregando transmissão HLS…')
+        return
+      }
+
+      setPlayerMessage('Este navegador não oferece suporte à reprodução HLS.')
+    }
+
+    const existingHlsScript = document.querySelector<HTMLScriptElement>('script[data-ib-hls="true"]')
+    if ((window as WindowWithHls).Hls) {
+      startPlayback()
+    } else if (existingHlsScript) {
+      existingHlsScript.addEventListener('load', startPlayback, { once: true })
+      existingHlsScript.addEventListener('error', () => setPlayerMessage('Não foi possível carregar o módulo de reprodução HLS.'), { once: true })
+    } else {
+      script = document.createElement('script')
+      script.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.6.15/dist/hls.min.js'
+      script.async = true
+      script.dataset.ibHls = 'true'
+      script.onload = startPlayback
+      script.onerror = () => setPlayerMessage('Não foi possível carregar o módulo de reprodução HLS.')
+      document.head.appendChild(script)
+    }
+
+    video.onerror = () => setPlayerMessage('O navegador não conseguiu abrir esta transmissão. Verifique a URL, o formato e o acesso do servidor.')
+    return () => {
+      cancelled = true
+      video.pause()
+      video.removeAttribute('src')
+      video.load()
+      video.onerror = null
+      hls?.destroy()
+    }
+  }, [channel.id, channel.stream_url])
+
+  return (
+    <div>
+      <video ref={videoRef} controls autoPlay playsInline preload="none" className="aspect-video w-full bg-black" />
+      <p role="status" className="px-5 py-3 text-xs text-white/45">{playerMessage}</p>
+      <div className="flex justify-end px-5 pb-4">
+        <button type="button" onClick={onClose} className="rounded-lg border border-white/10 px-4 py-2 text-xs text-white/70 hover:bg-white/[.06]">Fechar</button>
+      </div>
+    </div>
+  )
 }
 
 function EmptyState({ title, description }: { title: string; description: string }) {
@@ -255,7 +344,7 @@ export function StreamingApp() {
     {view === 'ao-vivo' && <TvGuide channels={visibleChannels} schedule={schedule.filter((item) => visibleChannels.some((channel) => channel.id === item.channel_id))} onPlayChannel={(channel) => { if (!channel.stream_url) { showNotice(`O canal ${channel.name} ainda não possui uma URL de transmissão cadastrada.`); return } setPlayerChannel(channel) }} />}
     {view === 'admin' && (isAdmin ? <AdminPanel /> : <section className="mx-auto max-w-3xl px-5 py-24 text-center"><Shield size={28} className="mx-auto text-[#e6b85c]" /><h1 className="mt-4 text-2xl font-semibold text-white">Acesso restrito</h1><p className="mt-2 text-sm text-white/50">Esta área está disponível apenas para contas com role admin.</p></section>)}
 
-    {playerChannel && <div role="presentation" className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setPlayerChannel(null) }}><section role="dialog" aria-modal="true" aria-labelledby="live-player-title" className="w-full max-w-5xl overflow-hidden rounded-2xl border border-white/10 bg-[#101315] shadow-2xl"><header className="flex items-center justify-between border-b border-white/[.08] px-5 py-4"><div><p className="text-[10px] font-semibold uppercase tracking-[.17em] text-[#e6b85c]">Transmissão ao vivo</p><h2 id="live-player-title" className="mt-1 text-base font-semibold text-white">{playerChannel.name}</h2></div><button type="button" onClick={() => setPlayerChannel(null)} aria-label="Fechar transmissão" className="grid size-9 place-items-center rounded-full text-white/50 hover:bg-white/[.08] hover:text-white"><X size={19} /></button></header><video key={playerChannel.id} src={playerChannel.stream_url ?? undefined} controls autoPlay playsInline preload="none" className="aspect-video w-full bg-black" /></section></div>}
+    {playerChannel && <div role="presentation" className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setPlayerChannel(null) }}><section role="dialog" aria-modal="true" aria-labelledby="live-player-title" className="w-full max-w-5xl overflow-hidden rounded-2xl border border-white/10 bg-[#101315] shadow-2xl"><header className="flex items-center justify-between border-b border-white/[.08] px-5 py-4"><div><p className="text-[10px] font-semibold uppercase tracking-[.17em] text-[#e6b85c]">Transmissão ao vivo</p><h2 id="live-player-title" className="mt-1 text-base font-semibold text-white">{playerChannel.name}</h2></div><button type="button" onClick={() => setPlayerChannel(null)} aria-label="Fechar transmissão" className="grid size-9 place-items-center rounded-full text-white/50 hover:bg-white/[.08] hover:text-white"><X size={19} /></button></header><LiveChannelPlayer channel={playerChannel} onClose={() => setPlayerChannel(null)} /></section></div>}
     {playerTitle && <PlayerDialog key={playerTitle.id} title={playerTitle} stream={streamResult} loading={streamLoading} message={streamResult && streamMessages[streamResult.status]} onClose={() => { setPlayerTitle(null); setStreamResult(null) }} onVerifyPin={verifyPin} onSaveProgress={saveProgress} />}
     <footer className="border-t border-white/[.06] px-5 py-6 sm:px-8 lg:px-12"><div className="mx-auto flex max-w-[1600px] flex-col gap-3 text-[10px] text-white/30 sm:flex-row sm:items-center sm:justify-between"><span className="flex items-center gap-2 tracking-[.12em]">IB<span className="text-[#e6b85c]/60">STREAMING</span><span className="tracking-normal">· © 2026</span></span><span>Catálogo e direitos sujeitos à disponibilidade por região.</span></div></footer>
   </main>
