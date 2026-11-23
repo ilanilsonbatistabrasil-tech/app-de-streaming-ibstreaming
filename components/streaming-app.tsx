@@ -63,8 +63,10 @@ function isOfficialEmbedUrl(source: string | null): boolean {
       url.hostname === 'aovivo.ebc.com.br' && url.pathname === '/embed-tvbrasil.html'
     const isTvSenadoEmbed =
       url.hostname === 'www.youtube.com' && url.pathname.startsWith('/embed/') && url.pathname.slice(7).length === 11 && /^[A-Za-z0-9_-]+$/.test(url.pathname.slice(7))
+    const isTvCulturaEmbed =
+      url.hostname === 'culturaplay.tvcultura.com.br' && url.pathname === '/channels/14/embed'
 
-    return isCameraEmbed || isTvBrasilEmbed || isTvSenadoEmbed
+    return isCameraEmbed || isTvBrasilEmbed || isTvSenadoEmbed || isTvCulturaEmbed
   } catch {
     return false
   }
