@@ -135,7 +135,7 @@ function LiveChannelPlayer({ channel, onClose }: { channel: Channel; onClose: ()
       video.onerror = null
       hls?.destroy()
     }
-  }, [channel.id, channel.stream_url, isOfficialCameraEmbed])
+  }, [channel.id, channel.stream_url, isOfficialEmbed])
 
   return (
     <div>
