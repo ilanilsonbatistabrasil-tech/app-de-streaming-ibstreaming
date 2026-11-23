@@ -62,7 +62,7 @@ function isOfficialEmbedUrl(source: string | null): boolean {
     const isTvBrasilEmbed =
       url.hostname === 'aovivo.ebc.com.br' && url.pathname === '/embed-tvbrasil.html'
     const isTvSenadoEmbed =
-      url.hostname === 'www.youtube.com' && /^\\/embed\\/[A-Za-z0-9_-]{11}$/.test(url.pathname)
+      url.hostname === 'www.youtube.com' && url.pathname.startsWith('/embed/') && url.pathname.slice(7).length === 11 && /^[A-Za-z0-9_-]+$/.test(url.pathname.slice(7))
 
     return isCameraEmbed || isTvBrasilEmbed || isTvSenadoEmbed
   } catch {
