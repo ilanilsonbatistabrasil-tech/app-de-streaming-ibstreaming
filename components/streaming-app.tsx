@@ -166,6 +166,7 @@ function EmptyState({ title, description }: { title: string; description: string
 export function StreamingApp() {
   const [view, setView] = useState<View>('inicio')
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [profileReady, setProfileReady] = useState(false)
   const [streamResult, setStreamResult] = useState<StreamResult | null>(null)
   const [streamLoading, setStreamLoading] = useState(false)
   const [query, setQuery] = useState('')
@@ -187,7 +188,7 @@ export function StreamingApp() {
     if (error) return null
     return data
   })
-  const { data: profiles = [], mutate: refreshProfiles } = useSWR<Profile[]>(userId ? ['profiles', userId] : null, async () => {
+  const { data: profiles = [], isLoading: profilesLoading, mutate: refreshProfiles } = useSWR<Profile[]>(userId ? ['profiles', userId] : null, async () => {
     const { data, error } = await supabase.from('profiles').select('id,name,kids').order('created_at')
     if (error) throw error
     return data ?? []
@@ -229,6 +230,26 @@ export function StreamingApp() {
   }, [query])
 
   useEffect(() => {
+    if (!userId || profilesLoading) {
+      setProfile(null)
+      setProfileReady(false)
+      return
+    }
+
+    const storageKey = `ibstreaming-profile:${userId}`
+    const savedProfileId = window.localStorage.getItem(storageKey)
+    const savedProfile = profiles.find((item) => item.id === savedProfileId)
+
+    if (savedProfile) {
+      setProfile(savedProfile)
+    } else {
+      setProfile(null)
+      if (savedProfileId) window.localStorage.removeItem(storageKey)
+    }
+    setProfileReady(true)
+  }, [userId, profiles, profilesLoading])
+
+  useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange(() => {
       window.setTimeout(() => refreshUser(), 0)
     })
@@ -242,6 +263,7 @@ export function StreamingApp() {
   }
 
   async function signOut() {
+    if (userId) window.localStorage.removeItem(`ibstreaming-profile:${userId}`)
     await supabase.auth.signOut()
     setProfile(null)
     setView('inicio')
@@ -325,7 +347,8 @@ export function StreamingApp() {
   if (authLoading) return <main className="grid min-h-screen place-items-center bg-[#080a0c]"><div className="flex items-center gap-3 text-sm text-white/55"><span className="size-4 animate-spin rounded-full border-2 border-white/15 border-t-[#e6b85c]" />Preparando sua sessão…</div></main>
   if (authError) return <AuthScreen onAuthenticated={() => refreshUser()} />
   if (!user) return <AuthScreen onAuthenticated={() => refreshUser()} />
-  if (!profile) return <ProfilePicker profiles={profiles} onCreated={() => refreshProfiles()} onSelect={(selected) => { setProfile(selected); setView('inicio') }} />
+  if (!profileReady) return <main className="grid min-h-screen place-items-center bg-[#080a0c]"><div className="flex items-center gap-3 text-sm text-white/55"><span className="size-4 animate-spin rounded-full border-2 border-white/15 border-t-[#e6b85c]" />Carregando seus perfis…</div></main>
+  if (!profile) return <ProfilePicker profiles={profiles} onCreated={() => refreshProfiles()} onSelect={(selected) => { window.localStorage.setItem(`ibstreaming-profile:${userId}`, selected.id); setProfile(selected); setView('inicio') }} />
 
   const isAdmin = account?.role === 'admin'
   const visibleChannels = profile.kids ? channels.filter((channel) => channel.kids) : channels
