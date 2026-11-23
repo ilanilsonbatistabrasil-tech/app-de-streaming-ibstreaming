@@ -53,10 +53,12 @@ function LiveChannelPlayer({ channel, onClose }: { channel: Channel; onClose: ()
   const videoRef = useRef<HTMLVideoElement>(null)
   const [playerMessage, setPlayerMessage] = useState('Preparando transmissão…')
 
+  const isOfficialCameraEmbed = channel.stream_url?.startsWith('https://www.camara.leg.br/tv/aovivo/embed')
+
   useEffect(() => {
     const video = videoRef.current
     const source = channel.stream_url
-    if (!video || !source) return
+    if (!video || !source || isOfficialCameraEmbed) return
 
     let hls: HlsInstance | null = null
     let cancelled = false
@@ -112,11 +114,21 @@ function LiveChannelPlayer({ channel, onClose }: { channel: Channel; onClose: ()
       video.onerror = null
       hls?.destroy()
     }
-  }, [channel.id, channel.stream_url])
+  }, [channel.id, channel.stream_url, isOfficialCameraEmbed])
 
   return (
     <div>
-      <video ref={videoRef} controls autoPlay playsInline preload="none" className="aspect-video w-full bg-black" />
+      {isOfficialCameraEmbed ? (
+        <iframe
+          src={channel.stream_url ?? undefined}
+          title={`Transmissão ao vivo - ${channel.name}`}
+          allow="autoplay; fullscreen; picture-in-picture"
+          allowFullScreen
+          className="aspect-video w-full bg-black"
+        />
+      ) : (
+        <video ref={videoRef} controls autoPlay playsInline preload="none" className="aspect-video w-full bg-black" />
+      )}
       <p role="status" className="px-5 py-3 text-xs text-white/45">{playerMessage}</p>
       <div className="flex justify-end px-5 pb-4">
         <button type="button" onClick={onClose} className="rounded-lg border border-white/10 px-4 py-2 text-xs text-white/70 hover:bg-white/[.06]">Fechar</button>
