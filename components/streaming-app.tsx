@@ -53,7 +53,9 @@ function LiveChannelPlayer({ channel, onClose }: { channel: Channel; onClose: ()
   const videoRef = useRef<HTMLVideoElement>(null)
   const [playerMessage, setPlayerMessage] = useState('Preparando transmissão…')
 
-  const isOfficialCameraEmbed = channel.stream_url?.startsWith('https://www.camara.leg.br/tv/aovivo/embed')
+  const isOfficialCameraEmbed =
+    channel.stream_url?.startsWith('https://www.camara.leg.br/tv/aovivo/embed') ||
+    channel.stream_url?.startsWith('https://www2.camara.leg.br/camaranoticias/tv/embedAoVivo.html')
 
   useEffect(() => {
     const video = videoRef.current
