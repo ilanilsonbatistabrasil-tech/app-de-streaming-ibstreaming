@@ -49,18 +49,37 @@ type HlsConstructor = {
 }
 type WindowWithHls = Window & { Hls?: HlsConstructor }
 
+function isOfficialEmbedUrl(source: string | null): boolean {
+  if (!source) return false
+
+  try {
+    const url = new URL(source)
+    if (url.protocol !== 'https:') return false
+
+    const isCameraEmbed =
+      (url.hostname === 'www.camara.leg.br' && url.pathname.startsWith('/tv/aovivo/embed')) ||
+      (url.hostname === 'www2.camara.leg.br' && url.pathname === '/camaranoticias/tv/embedAoVivo.html')
+    const isTvBrasilEmbed =
+      url.hostname === 'aovivo.ebc.com.br' && url.pathname === '/embed-tvbrasil.html'
+    const isTvSenadoEmbed =
+      url.hostname === 'www.youtube.com' && /^\\/embed\\/[A-Za-z0-9_-]{11}$/.test(url.pathname)
+
+    return isCameraEmbed || isTvBrasilEmbed || isTvSenadoEmbed
+  } catch {
+    return false
+  }
+}
+
 function LiveChannelPlayer({ channel, onClose }: { channel: Channel; onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [playerMessage, setPlayerMessage] = useState('Preparando transmissão…')
 
-  const isOfficialCameraEmbed =
-    channel.stream_url?.startsWith('https://www.camara.leg.br/tv/aovivo/embed') ||
-    channel.stream_url?.startsWith('https://www2.camara.leg.br/camaranoticias/tv/embedAoVivo.html')
+  const isOfficialEmbed = isOfficialEmbedUrl(channel.stream_url)
 
   useEffect(() => {
     const video = videoRef.current
     const source = channel.stream_url
-    if (!video || !source || isOfficialCameraEmbed) return
+    if (!video || !source || isOfficialEmbed) return
 
     let hls: HlsInstance | null = null
     let cancelled = false
@@ -120,12 +139,13 @@ function LiveChannelPlayer({ channel, onClose }: { channel: Channel; onClose: ()
 
   return (
     <div>
-      {isOfficialCameraEmbed ? (
+      {isOfficialEmbed ? (
         <iframe
           src={channel.stream_url ?? undefined}
           title={`Transmissão ao vivo - ${channel.name}`}
-          allow="autoplay; fullscreen; picture-in-picture"
+          allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
           allowFullScreen
+          referrerPolicy="strict-origin-when-cross-origin"
           className="aspect-video w-full bg-black"
         />
       ) : (
