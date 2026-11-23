@@ -30,6 +30,7 @@ const streamMessages: Record<string, string> = {
   pin: 'Digite o PIN do perfil',
   indisponivel: 'Indisponível na sua região',
   sem_video: 'Vídeo ainda não cadastrado',
+  erro: 'Não foi possível validar o acesso ao vídeo. O player continua aberto; tente novamente.',
 }
 
 function SectionHeading({ eyebrow, title, trailing }: { eyebrow: string; title: string; trailing?: React.ReactNode }) {
@@ -343,9 +344,10 @@ export function StreamingApp() {
     setStreamLoading(true)
     try {
       setStreamResult(await requestStream(title))
-    } catch {
-      setPlayerTitle(null)
-      showNotice('Não foi possível validar o acesso a este título. Tente novamente em instantes.')
+    } catch (error) {
+      console.error('[IBStreaming player] Falha ao validar o vídeo:', error)
+      setStreamResult({ status: 'erro', video_url: null, credit: null })
+      showNotice('Não foi possível validar o acesso ao vídeo. O player permanecerá aberto.')
     } finally {
       setStreamLoading(false)
     }
@@ -371,10 +373,10 @@ export function StreamingApp() {
       setPlayerTitle(savedTitle)
       setStreamResult(null)
       setStreamLoading(true)
-      void requestStream(savedTitle).then(setStreamResult).catch(() => {
-        setPlayerTitle(null)
-        window.localStorage.removeItem(playbackStorageKey)
-        showNotice('Não foi possível retomar este vídeo. Abra o título novamente pelo catálogo.')
+      void requestStream(savedTitle).then(setStreamResult).catch((error) => {
+        console.error('[IBStreaming player] Falha ao retomar o vídeo:', error)
+        setStreamResult({ status: 'erro', video_url: null, credit: null })
+        showNotice('Não foi possível validar o acesso para retomar este vídeo. O player permanecerá aberto.')
       }).finally(() => setStreamLoading(false))
     } catch {
       window.localStorage.removeItem(playbackStorageKey)
