@@ -179,9 +179,14 @@ export function StreamingApp() {
   const [playerChannel, setPlayerChannel] = useState<Channel | null>(null)
   const { data: user, isLoading: authLoading, error: authError, mutate: refreshUser } = useSWR<User | null>('ibstreaming-user', async () => {
     const { data, error } = await supabase.auth.getUser()
-    if (error) throw error
+    // Sem sessão é um estado normal para quem ainda não entrou; não deve
+    // disparar retries do SWR nem desmontar o formulário de login.
+    if (error) {
+      if (error.name === 'AuthSessionMissingError' || error.code === 'session_not_found') return null
+      throw error
+    }
     return data.user
-  })
+  }, { shouldRetryOnError: false })
   const userId = user?.id
   useEffect(() => {
     console.info('[IBStreaming login] Estado de autenticação', { loading: authLoading, hasUser: Boolean(user), hasError: Boolean(authError) })
@@ -367,8 +372,8 @@ export function StreamingApp() {
     await refreshProgress()
   }
 
-  if (authLoading) return <main className="grid min-h-screen place-items-center bg-[#080a0c]"><div className="flex items-center gap-3 text-sm text-white/55"><span className="size-4 animate-spin rounded-full border-2 border-white/15 border-t-[#e6b85c]" />Preparando sua sessão…</div></main>
   if (authError) return <AuthScreen onAuthenticated={() => refreshUser()} />
+  if (authLoading && user === undefined) return <main className="grid min-h-screen place-items-center bg-[#080a0c]"><div className="flex items-center gap-3 text-sm text-white/55"><span className="size-4 animate-spin rounded-full border-2 border-white/15 border-t-[#e6b85c]" />Preparando sua sessão…</div></main>
   if (!user) return <AuthScreen onAuthenticated={() => refreshUser()} />
   if (!profileReady) return <main className="grid min-h-screen place-items-center bg-[#080a0c]"><div className="flex items-center gap-3 text-sm text-white/55"><span className="size-4 animate-spin rounded-full border-2 border-white/15 border-t-[#e6b85c]" />Carregando seus perfis…</div></main>
   if (!profile) return <ProfilePicker profiles={profiles} onCreated={() => refreshProfiles()} onSelect={(selected) => { window.localStorage.setItem(`ibstreaming-profile:${userId}`, selected.id); setProfile(selected); window.localStorage.setItem(`ibstreaming-view:${userId}:${selected.id}`, 'inicio'); setView('inicio') }} />
