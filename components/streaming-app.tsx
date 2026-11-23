@@ -339,7 +339,7 @@ export function StreamingApp() {
   async function playTitle(title: TitleRecord) {
     setPlayerTitle(title)
     setResumeAtSeconds(0)
-    if (playbackStorageKey) window.localStorage.setItem(playbackStorageKey, JSON.stringify({ titleId: title.id, currentTime: 0 }))
+    if (playbackStorageKey) window.localStorage.setItem(playbackStorageKey, JSON.stringify({ titleId: title.id, title, currentTime: 0 }))
     setStreamResult(null)
     setStreamLoading(true)
     try {
@@ -354,20 +354,30 @@ export function StreamingApp() {
   }
 
   useEffect(() => {
-    if (!playbackStorageKey || !profile || catalogLoading || restoredPlaybackKeyRef.current === playbackStorageKey) return
+    if (!playbackStorageKey || !profile || restoredPlaybackKeyRef.current === playbackStorageKey) return
 
-    restoredPlaybackKeyRef.current = playbackStorageKey
     const raw = window.localStorage.getItem(playbackStorageKey)
-    if (!raw) return
+    if (!raw) {
+      restoredPlaybackKeyRef.current = playbackStorageKey
+      return
+    }
 
     try {
-      const saved = JSON.parse(raw) as { titleId?: number; currentTime?: number }
-      const savedTitle = catalog.find((item) => item.id === Number(saved.titleId))
+      const saved = JSON.parse(raw) as { titleId?: number; currentTime?: number; title?: TitleRecord }
+      const savedTitle = saved.title && typeof saved.title.id === 'number' && typeof saved.title.title === 'string'
+        ? saved.title
+        : catalog.find((item) => item.id === Number(saved.titleId))
+
+      // Registros antigos guardavam apenas o ID. Aguarda o catálogo antes
+      // de decidir que o título não existe; registros novos já incluem o título.
+      if (!savedTitle && catalogLoading) return
       if (!savedTitle) {
+        restoredPlaybackKeyRef.current = playbackStorageKey
         window.localStorage.removeItem(playbackStorageKey)
         return
       }
 
+      restoredPlaybackKeyRef.current = playbackStorageKey
       const savedTime = Number(saved.currentTime)
       setResumeAtSeconds(Number.isFinite(savedTime) && savedTime > 0 ? savedTime : 0)
       setPlayerTitle(savedTitle)
@@ -379,13 +389,14 @@ export function StreamingApp() {
         showNotice('Não foi possível validar o acesso para retomar este vídeo. O player permanecerá aberto.')
       }).finally(() => setStreamLoading(false))
     } catch {
+      restoredPlaybackKeyRef.current = playbackStorageKey
       window.localStorage.removeItem(playbackStorageKey)
     }
   }, [playbackStorageKey, profile, catalog, catalogLoading])
 
   function savePlaybackTime(currentTime: number) {
     if (!playbackStorageKey || !playerTitle || !Number.isFinite(currentTime)) return
-    window.localStorage.setItem(playbackStorageKey, JSON.stringify({ titleId: playerTitle.id, currentTime }))
+    window.localStorage.setItem(playbackStorageKey, JSON.stringify({ titleId: playerTitle.id, title: playerTitle, currentTime }))
   }
 
   function clearPlaybackResume() {
