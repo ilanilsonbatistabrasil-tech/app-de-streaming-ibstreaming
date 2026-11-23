@@ -1,11 +1,15 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import Image from 'next/image'
 import { ArrowRight, Eye, EyeOff, Film, LockKeyhole, Mail, Sparkles } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 export function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
+  useEffect(() => {
+    console.info('[IBStreaming login] AuthScreen montada')
+    return () => console.info('[IBStreaming login] AuthScreen desmontada')
+  }, [])
   const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
