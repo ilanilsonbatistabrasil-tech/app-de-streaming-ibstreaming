@@ -5,7 +5,7 @@ import { LockKeyhole, ShieldCheck, Tv, X } from 'lucide-react'
 import type { TitleRecord } from './title-card'
 import type { StreamResult } from './streaming-app'
 
-export function PlayerDialog({ title, stream, loading, message, onClose, onVerifyPin, onSaveProgress }: {
+export function PlayerDialog({ title, stream, loading, message, onClose, onVerifyPin, onSaveProgress, initialTime, onSavePlaybackTime, onClearPlayback }: {
   title: TitleRecord
   stream: StreamResult | null
   loading: boolean
@@ -13,11 +13,15 @@ export function PlayerDialog({ title, stream, loading, message, onClose, onVerif
   onClose: () => void
   onVerifyPin: (pin: string) => Promise<StreamResult>
   onSaveProgress: (percent: number) => Promise<void>
+  initialTime: number
+  onSavePlaybackTime: (seconds: number) => void
+  onClearPlayback: () => void
 }) {
   const [pin, setPin] = useState('')
   const [pinError, setPinError] = useState('')
   const [checkingPin, setCheckingPin] = useState(false)
   const lastSavedAt = useRef(0)
+  const restoredTimeRef = useRef(false)
 
   async function verify(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -33,6 +37,7 @@ export function PlayerDialog({ title, stream, loading, message, onClose, onVerif
 
   async function saveVideoProgress(video: HTMLVideoElement, force = false) {
     if (!Number.isFinite(video.duration) || video.duration <= 0) return
+    onSavePlaybackTime(video.currentTime)
     const now = Date.now()
     if (!force && now - lastSavedAt.current < 15000) return
     lastSavedAt.current = now
@@ -55,9 +60,16 @@ export function PlayerDialog({ title, stream, loading, message, onClose, onVerif
           preload="metadata"
           aria-label={`Reproduzir ${title.title}`}
           className="aspect-video w-full"
+          onLoadedMetadata={(event) => {
+            const video = event.currentTarget
+            if (!restoredTimeRef.current && initialTime > 0 && Number.isFinite(video.duration) && initialTime < video.duration) {
+              video.currentTime = initialTime
+            }
+            restoredTimeRef.current = true
+          }}
           onTimeUpdate={(event) => { void saveVideoProgress(event.currentTarget) }}
           onPause={(event) => { void saveVideoProgress(event.currentTarget, true) }}
-          onEnded={(event) => { void saveVideoProgress(event.currentTarget, true) }}
+          onEnded={(event) => { onClearPlayback(); void saveVideoProgress(event.currentTarget, true) }}
         /> : <div className="grid aspect-video place-items-center p-6 text-center">
           {loading ? <div role="status" className="text-sm text-white/60"><span className="mx-auto mb-3 block size-5 animate-spin rounded-full border-2 border-white/20 border-t-[#e6b85c]" />Verificando acesso ao título…</div>
             : requiresPin ? <div className="w-full max-w-sm"><span className="mx-auto grid size-12 place-items-center rounded-full border border-white/10 bg-white/[.05] text-white/75"><LockKeyhole size={21} /></span><p className="mt-4 text-sm font-semibold text-white">Digite o PIN do perfil</p><form onSubmit={verify} className="mt-4 flex gap-2"><label className="sr-only" htmlFor="player-pin">PIN do perfil</label><input id="player-pin" className="field-dark min-w-0 flex-1" type="password" inputMode="numeric" autoComplete="off" maxLength={8} value={pin} onChange={(event) => setPin(event.target.value)} placeholder="Digite o PIN" /><button disabled={checkingPin || !pin} className="rounded-lg bg-[#e6b85c] px-4 text-xs font-semibold text-[#16130b] disabled:opacity-50">{checkingPin ? 'Verificando…' : 'Confirmar'}</button></form>{pinError && <p role="alert" className="mt-3 text-xs text-[#f0a891]">{pinError}</p>}</div>
