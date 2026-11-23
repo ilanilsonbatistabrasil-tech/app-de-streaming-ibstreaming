@@ -250,6 +250,22 @@ export function StreamingApp() {
   }, [userId, profiles, profilesLoading])
 
   useEffect(() => {
+    if (!userId || !profileReady || !profile) return
+
+    const savedView = window.localStorage.getItem(`ibstreaming-view:${userId}:${profile.id}`)
+    const validViews: View[] = ['inicio', 'lista', 'ao-vivo', 'admin']
+    const canRestore = savedView && validViews.includes(savedView as View) && (savedView !== 'admin' || account?.role === 'admin')
+    setView(canRestore ? savedView as View : 'inicio')
+  }, [userId, profile, profileReady, account?.role])
+
+  function changeView(nextView: View) {
+    setView(nextView)
+    if (userId && profile) {
+      window.localStorage.setItem(`ibstreaming-view:${userId}:${profile.id}`, nextView)
+    }
+  }
+
+  useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange(() => {
       window.setTimeout(() => refreshUser(), 0)
     })
@@ -263,7 +279,10 @@ export function StreamingApp() {
   }
 
   async function signOut() {
-    if (userId) window.localStorage.removeItem(`ibstreaming-profile:${userId}`)
+    if (userId) {
+      window.localStorage.removeItem(`ibstreaming-profile:${userId}`)
+      if (profile) window.localStorage.removeItem(`ibstreaming-view:${userId}:${profile.id}`)
+    }
     await supabase.auth.signOut()
     setProfile(null)
     setView('inicio')
@@ -348,7 +367,7 @@ export function StreamingApp() {
   if (authError) return <AuthScreen onAuthenticated={() => refreshUser()} />
   if (!user) return <AuthScreen onAuthenticated={() => refreshUser()} />
   if (!profileReady) return <main className="grid min-h-screen place-items-center bg-[#080a0c]"><div className="flex items-center gap-3 text-sm text-white/55"><span className="size-4 animate-spin rounded-full border-2 border-white/15 border-t-[#e6b85c]" />Carregando seus perfis…</div></main>
-  if (!profile) return <ProfilePicker profiles={profiles} onCreated={() => refreshProfiles()} onSelect={(selected) => { window.localStorage.setItem(`ibstreaming-profile:${userId}`, selected.id); setProfile(selected); setView('inicio') }} />
+  if (!profile) return <ProfilePicker profiles={profiles} onCreated={() => refreshProfiles()} onSelect={(selected) => { window.localStorage.setItem(`ibstreaming-profile:${userId}`, selected.id); setProfile(selected); window.localStorage.setItem(`ibstreaming-view:${userId}:${selected.id}`, 'inicio'); setView('inicio') }} />
 
   const isAdmin = account?.role === 'admin'
   const visibleChannels = profile.kids ? channels.filter((channel) => channel.kids) : channels
@@ -364,9 +383,9 @@ export function StreamingApp() {
   return <main className="min-h-screen bg-[#080a0c] text-white">
     <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#080a0c]/90 backdrop-blur-xl">
       <div className="mx-auto flex h-[68px] max-w-[1600px] items-center gap-5 px-4 sm:px-7 lg:px-10">
-        <a href="#inicio" onClick={(event) => { event.preventDefault(); setView('inicio') }} aria-label="IBStreaming, início" className="inline-flex shrink-0 items-center gap-2.5"><span className="grid size-8 place-items-center rounded-lg bg-[#e6b85c] text-[#16130b]"><Film size={17} /></span><span className="hidden text-[14px] font-bold tracking-[.12em] sm:inline">IB<span className="text-[#e6b85c]">STREAMING</span></span></a>
+        <a href="#inicio" onClick={(event) => { event.preventDefault(); changeView('inicio') }} aria-label="IBStreaming, início" className="inline-flex shrink-0 items-center gap-2.5"><span className="grid size-8 place-items-center rounded-lg bg-[#e6b85c] text-[#16130b]"><Film size={17} /></span><span className="hidden text-[14px] font-bold tracking-[.12em] sm:inline">IB<span className="text-[#e6b85c]">STREAMING</span></span></a>
         <nav aria-label="Navegação principal" className={`${mobileNavOpen ? 'absolute left-0 right-0 top-[68px] flex border-b border-white/[.08] bg-[#0c0f10] px-4 py-3 shadow-xl' : 'hidden'} items-center gap-1 md:static md:flex md:border-0 md:bg-transparent md:p-0 md:shadow-none`}>
-          {navItems.map((item) => <button key={item.key} type="button" onClick={() => { setView(item.key); setMobileNavOpen(false) }} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition ${view === item.key ? 'bg-white/[.08] text-white' : 'text-white/50 hover:bg-white/[.04] hover:text-white/85'}`}>{item.icon}<span>{item.label}</span></button>)}
+          {navItems.map((item) => <button key={item.key} type="button" onClick={() => { changeView(item.key); setMobileNavOpen(false) }} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition ${view === item.key ? 'bg-white/[.08] text-white' : 'text-white/50 hover:bg-white/[.04] hover:text-white/85'}`}>{item.icon}<span>{item.label}</span></button>)}
         </nav>
         <button type="button" aria-label={mobileNavOpen ? 'Fechar menu' : 'Abrir menu'} onClick={() => setMobileNavOpen((open) => !open)} className="grid size-9 place-items-center rounded-lg text-white/60 hover:bg-white/[.06] md:hidden">{mobileNavOpen ? <X size={19} /> : <Menu size={19} />}</button>
         {view === 'inicio' && <label className="ml-auto hidden w-full max-w-[250px] items-center gap-2 rounded-lg border border-white/[.08] bg-[#111416] px-3 py-2 sm:flex"><Search size={15} className="shrink-0 text-white/35" /><input aria-label="Buscar no catálogo" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar títulos..." className="w-full bg-transparent text-xs text-white outline-none placeholder:text-white/35" /></label>}
@@ -386,7 +405,7 @@ export function StreamingApp() {
         <Image src="/images/ibstreaming-hero.png" alt="" fill priority sizes="100vw" className="absolute inset-0 -z-20 object-cover object-[center_42%]" />
         <div className="absolute inset-0 -z-10 bg-gradient-to-r from-[#080a0c] via-[#080a0c]/85 to-[#080a0c]/10" /><div className="absolute inset-0 -z-10 bg-gradient-to-t from-[#080a0c] via-transparent to-[#080a0c]/15" />
         <div className="mx-auto flex min-h-[440px] max-w-[1600px] items-end px-5 pb-10 pt-20 sm:min-h-[500px] sm:px-8 sm:pb-14 lg:min-h-[535px] lg:px-12 lg:pb-16">
-          <div className="max-w-xl"><p className="mb-4 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.22em] text-[#e6b85c]"><Sparkles size={14} />IBStreaming apresenta</p><h1 className="max-w-[540px] text-4xl font-semibold leading-[1.04] tracking-[-.04em] text-white sm:text-5xl lg:text-[62px]">Uma boa história muda tudo.</h1><p className="mt-4 max-w-md text-sm leading-6 text-white/65 sm:text-base">Descubra filmes, séries, animes e documentários feitos para o seu próximo momento inesquecível.</p><div className="mt-7 flex flex-wrap gap-3"><button type="button" onClick={() => document.getElementById('catalogo')?.scrollIntoView({ behavior: 'smooth' })} className="inline-flex h-11 items-center gap-2 rounded-lg bg-[#e6b85c] px-5 text-sm font-semibold text-[#16130b] transition hover:bg-[#f0ca76]"><Play size={16} fill="currentColor" />Explorar catálogo</button><button type="button" onClick={() => setView('ao-vivo')} className="inline-flex h-11 items-center gap-2 rounded-lg border border-white/20 bg-black/20 px-4 text-sm font-medium text-white/90 backdrop-blur transition hover:bg-white/10"><Radio size={15} />TV ao vivo</button></div></div>
+          <div className="max-w-xl"><p className="mb-4 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.22em] text-[#e6b85c]"><Sparkles size={14} />IBStreaming apresenta</p><h1 className="max-w-[540px] text-4xl font-semibold leading-[1.04] tracking-[-.04em] text-white sm:text-5xl lg:text-[62px]">Uma boa história muda tudo.</h1><p className="mt-4 max-w-md text-sm leading-6 text-white/65 sm:text-base">Descubra filmes, séries, animes e documentários feitos para o seu próximo momento inesquecível.</p><div className="mt-7 flex flex-wrap gap-3"><button type="button" onClick={() => document.getElementById('catalogo')?.scrollIntoView({ behavior: 'smooth' })} className="inline-flex h-11 items-center gap-2 rounded-lg bg-[#e6b85c] px-5 text-sm font-semibold text-[#16130b] transition hover:bg-[#f0ca76]"><Play size={16} fill="currentColor" />Explorar catálogo</button><button type="button" onClick={() => changeView('ao-vivo')} className="inline-flex h-11 items-center gap-2 rounded-lg border border-white/20 bg-black/20 px-4 text-sm font-medium text-white/90 backdrop-blur transition hover:bg-white/10"><Radio size={15} />TV ao vivo</button></div></div>
         </div>
       </section>}
       <section id="catalogo" className="mx-auto max-w-[1600px] px-5 pb-16 pt-7 sm:px-8 lg:px-12">
