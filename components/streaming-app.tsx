@@ -183,6 +183,9 @@ export function StreamingApp() {
     return data.user
   })
   const userId = user?.id
+  useEffect(() => {
+    console.info('[IBStreaming login] Estado de autenticação', { loading: authLoading, hasUser: Boolean(user), hasError: Boolean(authError) })
+  }, [authLoading, user, authError])
   const { data: account } = useSWR<Account | null>(userId ? ['account', userId] : null, async () => {
     const { data, error } = await supabase.from('accounts').select('id,name,role,plan_id').eq('id', userId).maybeSingle()
     if (error) return null
@@ -266,7 +269,8 @@ export function StreamingApp() {
   }
 
   useEffect(() => {
-    const { data } = supabase.auth.onAuthStateChange(() => {
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      console.info('[IBStreaming login] Evento Supabase Auth:', event)
       window.setTimeout(() => refreshUser(), 0)
     })
     return () => data.subscription.unsubscribe()
