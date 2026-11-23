@@ -63,8 +63,10 @@ function isOfficialEmbedUrl(source: string | null): boolean {
       url.hostname === 'aovivo.ebc.com.br' && url.pathname === '/embed-tvbrasil.html'
     const isTvSenadoEmbed =
       url.hostname === 'www.youtube.com' && url.pathname.startsWith('/embed/') && url.pathname.slice(7).length === 11 && /^[A-Za-z0-9_-]+$/.test(url.pathname.slice(7))
+    const isTvCulturaEmbed =
+      url.hostname === 'culturaplay.tvcultura.com.br' && url.pathname === '/channels/14/embed'
 
-    return isCameraEmbed || isTvBrasilEmbed || isTvSenadoEmbed
+    return isCameraEmbed || isTvBrasilEmbed || isTvSenadoEmbed || isTvCulturaEmbed
   } catch {
     return false
   }
@@ -179,18 +181,10 @@ export function StreamingApp() {
   const [playerChannel, setPlayerChannel] = useState<Channel | null>(null)
   const { data: user, isLoading: authLoading, error: authError, mutate: refreshUser } = useSWR<User | null>('ibstreaming-user', async () => {
     const { data, error } = await supabase.auth.getUser()
-    // Sem sessão é um estado normal para quem ainda não entrou; não deve
-    // disparar retries do SWR nem desmontar o formulário de login.
-    if (error) {
-      if (error.name === 'AuthSessionMissingError' || error.code === 'session_not_found') return null
-      throw error
-    }
+    if (error) throw error
     return data.user
-  }, { shouldRetryOnError: false })
+  })
   const userId = user?.id
-  useEffect(() => {
-    console.info('[IBStreaming login] Estado de autenticação', { loading: authLoading, hasUser: Boolean(user), hasError: Boolean(authError) })
-  }, [authLoading, user, authError])
   const { data: account } = useSWR<Account | null>(userId ? ['account', userId] : null, async () => {
     const { data, error } = await supabase.from('accounts').select('id,name,role,plan_id').eq('id', userId).maybeSingle()
     if (error) return null
@@ -274,8 +268,7 @@ export function StreamingApp() {
   }
 
   useEffect(() => {
-    const { data } = supabase.auth.onAuthStateChange((event) => {
-      console.info('[IBStreaming login] Evento Supabase Auth:', event)
+    const { data } = supabase.auth.onAuthStateChange(() => {
       window.setTimeout(() => refreshUser(), 0)
     })
     return () => data.subscription.unsubscribe()
@@ -372,8 +365,8 @@ export function StreamingApp() {
     await refreshProgress()
   }
 
+  if (authLoading) return <main className="grid min-h-screen place-items-center bg-[#080a0c]"><div className="flex items-center gap-3 text-sm text-white/55"><span className="size-4 animate-spin rounded-full border-2 border-white/15 border-t-[#e6b85c]" />Preparando sua sessão…</div></main>
   if (authError) return <AuthScreen onAuthenticated={() => refreshUser()} />
-  if (authLoading && user === undefined) return <main className="grid min-h-screen place-items-center bg-[#080a0c]"><div className="flex items-center gap-3 text-sm text-white/55"><span className="size-4 animate-spin rounded-full border-2 border-white/15 border-t-[#e6b85c]" />Preparando sua sessão…</div></main>
   if (!user) return <AuthScreen onAuthenticated={() => refreshUser()} />
   if (!profileReady) return <main className="grid min-h-screen place-items-center bg-[#080a0c]"><div className="flex items-center gap-3 text-sm text-white/55"><span className="size-4 animate-spin rounded-full border-2 border-white/15 border-t-[#e6b85c]" />Carregando seus perfis…</div></main>
   if (!profile) return <ProfilePicker profiles={profiles} onCreated={() => refreshProfiles()} onSelect={(selected) => { window.localStorage.setItem(`ibstreaming-profile:${userId}`, selected.id); setProfile(selected); window.localStorage.setItem(`ibstreaming-view:${userId}:${selected.id}`, 'inicio'); setView('inicio') }} />
