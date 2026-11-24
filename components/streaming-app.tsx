@@ -50,6 +50,23 @@ type HlsConstructor = {
 }
 type WindowWithHls = Window & { Hls?: HlsConstructor }
 
+function isExternalChannelUrl(source: string | null): boolean {
+  if (!source) return false
+  try {
+    const url = new URL(source)
+    if (url.protocol !== 'https:') return false
+    const hosts = [
+      'www.redetv.uol.com.br', 'redetv.uol.com.br', 'a12.com',
+      'www.netflix.com', 'www.max.com', 'www.disneyplus.com',
+      'www.espn.com.br', 'www.beinsports.com', 'globoplay.globo.com',
+      'www.primevideo.com', 'www.paramountplus.com', 'tv.apple.com',
+    ]
+    return hosts.some((host) => url.hostname === host || url.hostname.endsWith('.' + host))
+  } catch {
+    return false
+  }
+}
+
 function isOfficialEmbedUrl(source: string | null): boolean {
   if (!source) return false
 
@@ -487,7 +504,7 @@ export function StreamingApp() {
     </>}
 
     {view === 'lista' && <section className="mx-auto max-w-[1600px] px-5 pb-20 pt-9 sm:px-8 lg:px-12"><SectionHeading eyebrow="Sua coleção pessoal" title="Minha lista" trailing={<span className="text-xs text-white/40">{savedTitles.length} títulos</span>} />{savedTitles.length ? renderCards(savedTitles, true) : <EmptyState title="Sua lista ainda está vazia" description="Use o ícone de marcador nos títulos para guardar aqui o que quer assistir depois." />}</section>}
-    {view === 'ao-vivo' && <TvGuide channels={visibleChannels} schedule={schedule.filter((item) => visibleChannels.some((channel) => channel.id === item.channel_id))} onPlayChannel={(channel) => { if (!channel.stream_url) { showNotice(`O canal ${channel.name} ainda não possui uma URL de transmissão cadastrada.`); return } setPlayerChannel(channel) }} />}
+    {view === 'ao-vivo' && <TvGuide channels={visibleChannels} schedule={schedule.filter((item) => visibleChannels.some((channel) => channel.id === item.channel_id))} onPlayChannel={(channel) => { if (!channel.stream_url) { showNotice(`O canal ${channel.name} ainda não possui uma URL de transmissão cadastrada.`); return } if (isExternalChannelUrl(channel.stream_url)) { window.open(channel.stream_url, '_blank', 'noopener,noreferrer'); return } setPlayerChannel(channel) }} />}
     {view === 'admin' && (isAdmin ? <AdminPanel /> : <section className="mx-auto max-w-3xl px-5 py-24 text-center"><Shield size={28} className="mx-auto text-[#e6b85c]" /><h1 className="mt-4 text-2xl font-semibold text-white">Acesso restrito</h1><p className="mt-2 text-sm text-white/50">Esta área está disponível apenas para contas com role admin.</p></section>)}
 
     {playerChannel && <div role="presentation" className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setPlayerChannel(null) }}><section role="dialog" aria-modal="true" aria-labelledby="live-player-title" className="w-full max-w-5xl overflow-hidden rounded-2xl border border-white/10 bg-[#101315] shadow-2xl"><header className="flex items-center justify-between border-b border-white/[.08] px-5 py-4"><div><p className="text-[10px] font-semibold uppercase tracking-[.17em] text-[#e6b85c]">Transmissão ao vivo</p><h2 id="live-player-title" className="mt-1 text-base font-semibold text-white">{playerChannel.name}</h2></div><button type="button" onClick={() => setPlayerChannel(null)} aria-label="Fechar transmissão" className="grid size-9 place-items-center rounded-full text-white/50 hover:bg-white/[.08] hover:text-white"><X size={19} /></button></header><LiveChannelPlayer channel={playerChannel} onClose={() => setPlayerChannel(null)} /></section></div>}
