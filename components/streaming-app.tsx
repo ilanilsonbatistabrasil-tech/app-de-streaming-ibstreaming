@@ -20,6 +20,20 @@ type SavedRow = { title_id: number; added_at: string }
 type ProgressRow = { title_id: number; percent: number; updated_at: string }
 type Channel = { id: string; name: string; kids: boolean; stream_url: string | null }
 type Schedule = { channel_id: string; slot: number; program: string }
+
+const officialShortcutChannels: Channel[] = [
+  { id: 'official-tv-aparecida', name: 'TV Aparecida', kids: false, stream_url: 'https://www.a12.com/tv/tv-ao-vivo/' },
+  { id: 'official-redetv', name: 'RedeTV! Ao Vivo', kids: false, stream_url: 'https://www.redetv.uol.com.br/aovivo' },
+  { id: 'official-netflix', name: 'Netflix', kids: false, stream_url: 'https://www.netflix.com/br/' },
+  { id: 'official-max', name: 'Max (HBO)', kids: false, stream_url: 'https://www.max.com/br/pt' },
+  { id: 'official-disney-plus', name: 'Disney+', kids: false, stream_url: 'https://www.disneyplus.com/pt-br' },
+  { id: 'official-espn', name: 'ESPN Brasil', kids: false, stream_url: 'https://www.espn.com.br/' },
+  { id: 'official-bein', name: 'beIN SPORTS', kids: false, stream_url: 'https://www.beinsports.com/' },
+  { id: 'official-globoplay', name: 'Globoplay', kids: false, stream_url: 'https://globoplay.globo.com/' },
+  { id: 'official-prime-video', name: 'Prime Video', kids: false, stream_url: 'https://www.primevideo.com/' },
+  { id: 'official-paramount-plus', name: 'Paramount+', kids: false, stream_url: 'https://www.paramountplus.com/br/' },
+  { id: 'official-apple-tv', name: 'Apple TV', kids: false, stream_url: 'https://tv.apple.com/br' },
+]
 type View = 'inicio' | 'lista' | 'ao-vivo' | 'admin'
 
 export type StreamResult = { status: string; video_url: string | null; credit: number | string | null }
@@ -457,7 +471,13 @@ export function StreamingApp() {
   if (!profile) return <ProfilePicker profiles={profiles} onCreated={() => refreshProfiles()} onSelect={(selected) => { window.localStorage.setItem(`ibstreaming-profile:${userId}`, selected.id); setProfile(selected); window.localStorage.setItem(`ibstreaming-view:${userId}:${selected.id}`, 'inicio'); setView('inicio') }} />
 
   const isAdmin = account?.role === 'admin'
-  const visibleChannels = profile.kids ? channels.filter((channel) => channel.kids) : channels
+  const catalogChannels = [
+    ...channels,
+    ...officialShortcutChannels.filter((shortcut) =>
+      !channels.some((channel) => channel.name.trim().toLocaleLowerCase('pt-BR') === shortcut.name.toLocaleLowerCase('pt-BR'))
+    ),
+  ].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+  const visibleChannels = profile.kids ? catalogChannels.filter((channel) => channel.kids) : catalogChannels
   const renderCards = (items: TitleRecord[], showProgress = false) => items.length ? <div className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">{items.map((item) => <TitleCard key={item.id} title={item} progress={showProgress ? progressById.get(item.id) : undefined} saved={savedIds.includes(item.id)} onPlay={(selected) => playTitle(selected)} onToggleList={toggleSaved} />)}</div> : null
 
   const navItems: { key: View; label: string; icon: React.ReactNode }[] = [
