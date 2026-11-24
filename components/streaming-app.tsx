@@ -56,7 +56,7 @@ function isExternalChannelUrl(source: string | null): boolean {
     const url = new URL(source)
     if (url.protocol !== 'https:') return false
     const hosts = [
-      'www.redetv.uol.com.br', 'redetv.uol.com.br', 'a12.com',
+      'www.redetv.uol.com.br', 'redetv.uol.com.br', 'a12.com', 'cultura.uol.com.br',
       'www.netflix.com', 'www.max.com', 'www.disneyplus.com',
       'www.espn.com.br', 'www.beinsports.com', 'globoplay.globo.com',
       'www.primevideo.com', 'www.paramountplus.com', 'tv.apple.com',
