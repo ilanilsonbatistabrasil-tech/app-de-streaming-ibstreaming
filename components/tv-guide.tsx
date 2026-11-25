@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useState } from 'react'
 import { CalendarDays, CirclePlay, Radio, Tv } from 'lucide-react'
 
 type Channel = { id: string; name: string; kids: boolean; stream_url: string | null; category?: string; catalog_group?: string; access_label?: string; logo_url?: string | null }
