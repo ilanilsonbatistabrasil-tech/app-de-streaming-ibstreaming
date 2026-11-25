@@ -98,13 +98,13 @@ export function PlayerDialog({ title, stream, loading, message, onClose, onVerif
       existingScript.addEventListener('load', startPlayback, { once: true })
       existingScript.addEventListener('error', () => setPlaybackMessage('Não foi possível carregar o mecanismo de vídeo HLS.'), { once: true })
     } else {
-      script = document.createElement('script')
-      script.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.6.15/dist/hls.min.js'
-      script.async = true
-      script.dataset.ibHls = 'true'
-      script.onload = startPlayback
-      script.onerror = () => setPlaybackMessage('Não foi possível carregar o mecanismo de vídeo HLS.')
-      document.head.appendChild(script)
+      const hlsScript = document.createElement('script')
+      hlsScript.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.6.15/dist/hls.min.js'
+      hlsScript.async = true
+      hlsScript.dataset.ibHls = 'true'
+      hlsScript.onload = startPlayback
+      hlsScript.onerror = () => setPlaybackMessage('Não foi possível carregar o mecanismo de vídeo HLS.')
+      document.head.appendChild(hlsScript)
     }
 
     video.onerror = () => setPlaybackMessage('O navegador não conseguiu abrir o vídeo. Verifique se o endereço está ativo e permite reprodução neste site.')
