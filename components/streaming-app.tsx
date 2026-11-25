@@ -83,7 +83,7 @@ function isExternalChannelUrl(source: string | null): boolean {
     if (url.protocol !== 'https:') return false
     const hosts = [
       'www.redetv.uol.com.br', 'redetv.uol.com.br', 'a12.com', 'cultura.uol.com.br',
-      'tvbrasil.ebc.com.br', 'canalgov.ebc.com.br', 'canaleducacao.ebc.com.br', 'canallibras-stream.ebc.com.br',
+      'tvbrasil.ebc.com.br', 'canalgov.ebc.com.br', 'canaleducacao.ebc.com.br',
       'www.netflix.com', 'www.max.com', 'www.disneyplus.com', 'pluto.tv', 'www.pluto.tv',
       'www.samsung.com',
       'www.espn.com.br', 'www.beinsports.com', 'globoplay.globo.com',
