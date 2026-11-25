@@ -50,7 +50,7 @@ const officialShortcutChannels: Channel[] = [
   { id: 'official-apple-tv', name: 'Apple TV', kids: false, stream_url: 'https://tv.apple.com/br' },
   { id: 'official-pluto-tv', name: 'Pluto TV (canais gratuitos)', kids: false, stream_url: 'https://pluto.tv/br/watch/live-tv/' },
   { id: 'official-samsung-tv-plus', name: 'Samsung TV Plus', kids: false, stream_url: 'https://www.samsung.com/br/tvs/smart-tv/samsung-tv-plus/' },
-].map((channel) => ({ ...channel, catalog_group: 'Plataformas oficiais', access_label: 'Abrir página oficial do serviço' }))
+].map((channel) => ({ ...channel, catalog_group: 'Plataformas oficiais', access_label: isOfficialEmbedUrl(channel.stream_url) ? 'Assistir ao vivo no IBStreaming' : 'Abrir página oficial do serviço' }))
 
 function normalizeChannelName(value: string): string {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '')
