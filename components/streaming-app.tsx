@@ -54,6 +54,22 @@ const officialShortcutChannels: Channel[] = [
 function normalizeChannelName(value: string): string {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '')
 }
+
+function findChannelLogo(name: string, logos: Record<string, string>): string | null {
+  const normalized = normalizeChannelName(name)
+  if (logos[normalized]) return logos[normalized]
+
+  // As playlists often add quality labels or suffixes to the channel name,
+  // allow a conservative prefix match for names long enough to be distinctive.
+  if (normalized.length < 6) return null
+  const matches = Object.entries(logos)
+    .filter(([key]) => key.length >= 6 && (key.startsWith(normalized) || normalized.startsWith(key)))
+    .sort((a, b) => Math.abs(a[0].length - normalized.length) - Math.abs(b[0].length - normalized.length))
+
+  if (!matches.length) return null
+  if (matches.length > 1 && Math.abs(matches[0][0].length - normalized.length) === Math.abs(matches[1][0].length - normalized.length)) return null
+  return matches[0][1]
+}
 type View = 'inicio' | 'lista' | 'ao-vivo' | 'admin'
 
 export type StreamResult = { status: string; video_url: string | null; credit: number | string | null }
@@ -455,7 +471,7 @@ export function StreamingApp() {
     ...channels,
     ...officialShortcutChannels.filter((shortcut) => !channels.some((channel) => normalizeChannelName(channel.name) === normalizeChannelName(shortcut.name))),
     ...importedBrazilChannels.filter((entry) => !existingNames.has(normalizeChannelName(entry.name))),
-  ].map((channel) => ({ ...channel, logo_url: channel.logo_url || channelLogos[normalizeChannelName(channel.name)] || null })).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+  ].map((channel) => ({ ...channel, logo_url: channel.logo_url || findChannelLogo(channel.name, channelLogos) })).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
   const visibleChannels = profile.kids ? catalogChannels.filter((channel) => channel.kids) : catalogChannels
   const renderCards = (items: TitleRecord[], showProgress = false) => items.length ? <div className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">{items.map((item) => <TitleCard key={item.id} title={item} progress={showProgress ? progressById.get(item.id) : undefined} saved={savedIds.includes(item.id)} onPlay={(selected) => playTitle(selected)} onToggleList={toggleSaved} />)}</div> : null
 
