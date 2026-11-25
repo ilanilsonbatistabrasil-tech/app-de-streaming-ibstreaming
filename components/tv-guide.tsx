@@ -29,16 +29,37 @@ const categoryOrder = [
 ]
 
 function getChannelCategory(channel: Channel): string {
-  const name = channel.name.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase()
+  const name = channel.name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[!]/g, '')
+    .trim()
+  const id = channel.id.toLowerCase()
+
+  // Primeiro separam-se serviços e géneros específicos. Emissoras generalistas
+  // brasileiras só entram em "Canais brasileiros" quando não são canais temáticos.
   if (channel.kids || /kids|infantil|nick jr|baby shark|babyfirst|gloob|bob esponja|turma da monica|desenhos|cartoon/.test(name)) return 'Kids'
-  if (/espn|bein|sport|esporte|combate|ufc|mma|fifa|n sports|band sports|pluto tv —.*(fight|luta)/.test(name)) return 'Esportes'
+  if (/espn|bein|sport|esporte|combate|ufc|mma|fifa|n sports|band sports|sportv|premiere/.test(name)) return 'Esportes'
   if (/telecine|cinema|cine |cine$|movies|filmes|film|netmovies|adrenalina pura/.test(name)) return 'Filmes'
-  if (/series|séries|novelas|novela|sitcom|pluto tv —.*series/.test(name)) return 'Séries'
-  if (/news|noticias|notícias|cnn|jornal|jovem pan|bm&c|globo news|record news|sbt news|euronews|times brasil/.test(name)) return 'Notícias'
-  if (/document|nature|natureza|history|historia|história|discovery|animal|smithsonian|travel|agro|fish tv|viagens|investigacao|investigação/.test(name)) return 'Documentários e Natureza'
-  if (/music|musica|música|radio|rádio|kpop|stingray|rock|karaoke|karaokê/.test(name)) return 'Música'
-  if (isExternalService(channel.stream_url) && !/tv ao vivo|rede tv|tv aparecida/.test(name)) return 'Plataformas'
-  if (channel.catalog_group === 'Canais brasileiros' || /^(tv |rede |sbt|record|globo|band|canal |cultura|rede tv)/.test(name)) return 'Canais brasileiros'
+  if (/series|seriados|novelas|novela|sitcom/.test(name)) return 'Séries'
+  if (/news|noticias|cnn|jornal|jovem pan|bm&c|globo news|record news|sbt news|euronews|times brasil/.test(name)) return 'Notícias'
+  if (/document|nature|natureza|history|historia|discovery|animal|smithsonian|travel|agro|fish tv|viagens|investigacao/.test(name)) return 'Documentários e Natureza'
+  if (/music|musica|radio|kpop|stingray|rock|karaoke/.test(name)) return 'Música'
+
+  // Plataformas e aplicativos não são canais lineares brasileiros.
+  if (isExternalService(channel.stream_url) && !/tv ao vivo|rede tv|tv aparecida/.test(name)) {
+    if (/espn|bein|sport/.test(name)) return 'Esportes'
+    return 'Plataformas'
+  }
+
+  // Emissoras públicas, abertas e legislativas do Brasil.
+  const brazilianBroadcaster =
+    /\b(tv brasil|tv cultura|tv escola|tv aparecida|rede tv|redetv|tv senado|tv camara|tv camara dos deputados|tv justica|tv justiça|canal gov|tv brasil central|tv assembleia|tv ale|tv legislativa|tv universit[aá]ria|tv diario|tv diario|tv gazeta|tv record|record tv|record|sbt|globo|band|canal brasil|futura|tv novo tempo|canal rural|tv evangelizar|tv pai eterno)\b/.test(name) ||
+    /^(tv-brasil|tv-cultura|tv-senado|tv-camara|tv-justica|tv-aparecida|redetv|canal-gov)$/.test(id) ||
+    channel.catalog_group === 'Canais brasileiros'
+  if (brazilianBroadcaster) return 'Canais brasileiros'
+
   return 'Variedades'
 }
 
