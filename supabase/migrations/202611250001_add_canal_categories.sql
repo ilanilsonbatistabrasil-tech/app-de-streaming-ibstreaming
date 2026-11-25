@@ -34,3 +34,12 @@ comment on column public.canais.categoria is
 
 create index if not exists canais_categoria_nome_idx
   on public.canais (categoria, nome);
+
+-- Canal próprio do aplicativo: fica preparado no catálogo até existir uma fonte HLS
+-- de propriedade do operador ou licenciada. Nenhum stream de terceiros é copiado.
+insert into public.canais (id, nome, "crianças", stream_url, categoria)
+select 'ibstreaming-original', 'IBSTREAMING', false, null, 'Canais brasileiros'
+where not exists (
+  select 1 from public.canais existing
+  where lower(trim(existing.nome)) = lower('IBSTREAMING')
+);
