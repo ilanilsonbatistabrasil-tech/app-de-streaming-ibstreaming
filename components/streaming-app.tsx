@@ -150,7 +150,7 @@ function LiveChannelPlayer({ channel, onClose }: { channel: Channel; onClose: ()
       ) : (
         <video ref={videoRef} controls autoPlay playsInline preload="none" className="aspect-video w-full bg-black" />
       )}
-      <p role="status" className="px-5 py-3 text-xs text-white/45">{playerMessage}</p>
+      <p role="status" className="px-5 py-3 text-xs text-white/45">{embedUrl ? 'Reprodução incorporada pelo provedor.' : playerMessage}</p>
       <div className="flex justify-end px-5 pb-4">
         <button type="button" onClick={onClose} className="rounded-lg border border-white/10 px-4 py-2 text-xs text-white/70 hover:bg-white/[.06]">Fechar</button>
       </div>
