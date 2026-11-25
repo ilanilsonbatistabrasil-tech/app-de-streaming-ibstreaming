@@ -28,11 +28,12 @@ const officialShortcutChannels: Channel[] = [
   { id: 'ibstreaming-original', name: 'IBSTREAMING', kids: false, stream_url: null, category: 'Canais brasileiros', catalog_group: 'Canais brasileiros', access_label: 'Canal próprio — aguardando fonte de transmissão autorizada' },
   { id: 'official-tv-aparecida', name: 'TV Aparecida', kids: false, stream_url: 'https://www.a12.com/tv/tv-ao-vivo/' },
   { id: 'official-redetv', name: 'RedeTV! Ao Vivo', kids: false, stream_url: 'https://www.redetv.uol.com.br/aovivo' },
-  { id: 'official-tv-brasil', name: 'TV Brasil', kids: false, stream_url: 'https://tvbrasil-stream.ebc.com.br/index.m3u8' },
+  { id: 'official-tv-brasil', name: 'TV Brasil', kids: false, stream_url: 'https://aovivo.ebc.com.br/embed-tvbrasil.html', category: 'Canais brasileiros' },
   { id: 'official-canal-gov', name: 'Canal Gov', kids: false, stream_url: 'https://canalgov-stream.ebc.com.br/index.m3u8' },
   { id: 'official-canal-educacao', name: 'Canal Educação', kids: false, stream_url: 'https://canaleducacao-stream.ebc.com.br/index.m3u8' },
   { id: 'official-canal-libras', name: 'Canal Libras', kids: false, stream_url: 'https://canallibras-stream.ebc.com.br/mux_video_ts/index-1.m3u8' },
-  { id: 'official-tv-camara', name: 'TV Câmara', kids: false, stream_url: 'https://stream3.camara.gov.br/tv1/manifest.m3u8' },
+  { id: 'official-tv-camara', name: 'TV Câmara', kids: false, stream_url: 'https://www.camara.leg.br/tv/aovivo/embed', category: 'Canais brasileiros' },
+  { id: 'official-tv-cultura', name: 'TV Cultura', kids: false, stream_url: 'https://culturaplay.tvcultura.com.br/channels/14/embed', category: 'Canais brasileiros' },
   { id: 'official-tv-camara-2', name: 'TV Câmara 2', kids: false, stream_url: 'https://stream3.camara.gov.br/tv2/manifest.m3u8' },
   { id: 'official-tv-cultura-fast', name: 'Cultura Fast', kids: false, stream_url: 'https://fpa-gateway.tvcultura.com.br:8181/memfs/606caef0-a290-413d-9f1f-8fcdb3a73831.m3u8' },
   { id: 'official-tve-rs', name: 'TVE RS', kids: false, stream_url: 'https://streaming.procergs.com.br:8443/tve/stve/playlist.m3u8' },
@@ -53,6 +54,16 @@ const officialShortcutChannels: Channel[] = [
 
 function normalizeChannelName(value: string): string {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+function getOfficialPlaybackUrl(channelName: string): string | null {
+  const normalized = normalizeChannelName(channelName)
+  const officialEmbeds: Record<string, string> = {
+    tvbrasil: 'https://aovivo.ebc.com.br/embed-tvbrasil.html',
+    tvcamara: 'https://www.camara.leg.br/tv/aovivo/embed',
+    tvcultura: 'https://culturaplay.tvcultura.com.br/channels/14/embed',
+  }
+  return officialEmbeds[normalized] ?? null
 }
 
 function findChannelLogo(name: string, logos: Record<string, string>): string | null {
@@ -471,7 +482,7 @@ export function StreamingApp() {
     ...channels,
     ...officialShortcutChannels.filter((shortcut) => !channels.some((channel) => normalizeChannelName(channel.name) === normalizeChannelName(shortcut.name))),
     ...importedBrazilChannels.filter((entry) => !existingNames.has(normalizeChannelName(entry.name))),
-  ].map((channel) => ({ ...channel, logo_url: channel.logo_url || findChannelLogo(channel.name, channelLogos) })).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+  ].map((channel) => ({ ...channel, stream_url: getOfficialPlaybackUrl(channel.name) || channel.stream_url, logo_url: channel.logo_url || findChannelLogo(channel.name, channelLogos) })).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
   const visibleChannels = profile.kids ? catalogChannels.filter((channel) => channel.kids) : catalogChannels
   const renderCards = (items: TitleRecord[], showProgress = false) => items.length ? <div className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">{items.map((item) => <TitleCard key={item.id} title={item} progress={showProgress ? progressById.get(item.id) : undefined} saved={savedIds.includes(item.id)} onPlay={(selected) => playTitle(selected)} onToggleList={toggleSaved} />)}</div> : null
 
