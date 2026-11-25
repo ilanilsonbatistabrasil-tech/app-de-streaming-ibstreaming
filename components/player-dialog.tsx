@@ -91,7 +91,7 @@ export function PlayerDialog({ title, stream, loading, message, onClose, onVerif
               : <div><span className="mx-auto grid size-12 place-items-center rounded-full border border-white/10 bg-white/[.05] text-white/70"><ShieldCheck size={22} /></span><p role="status" className="mt-4 text-sm font-medium text-white/80">{message ?? (stream?.status === 'ok' ? 'Vídeo ainda não cadastrado' : 'Preparando reprodução…')}</p>{stream?.status !== 'ok' && stream?.status !== 'sem_video' && <div className="mt-3 flex items-center justify-center gap-2 text-[10px] uppercase tracking-[.12em] text-white/40"><Tv size={13} />Acesso conferido antes da reprodução</div>}</div>}
         </div>}
       </div>
-      {playable && playbackMessage && <p role="status" className="border-t border-white/[.08] px-5 py-3 text-xs text-white/45">{playbackMessage}</p>}
+      {playable && (playbackMessage || embedUrl) && <p role="status" className="border-t border-white/[.08] px-5 py-3 text-xs text-white/45">{playbackMessage || 'Vídeo incorporado pelo provedor. O progresso de reprodução pode não ser sincronizado pelo IBStreaming.'}</p>}
       {stream?.credit !== null && stream?.credit !== undefined && <p className="border-t border-white/[.08] px-5 py-3 text-xs text-white/55 sm:px-6">Crédito: <span className="font-medium text-white/80">{stream.credit}</span></p>}
     </section>
   </div>
