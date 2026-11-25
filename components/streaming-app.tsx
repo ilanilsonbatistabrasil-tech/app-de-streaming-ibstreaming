@@ -23,6 +23,7 @@ type Channel = { id: string; name: string; kids: boolean; stream_url: string | n
 type Schedule = { channel_id: string; slot: number; program: string }
 
 const officialShortcutChannels: Channel[] = [
+  { id: 'ibstreaming-original', name: 'IBSTREAMING', kids: false, stream_url: null, category: 'Canais brasileiros', catalog_group: 'Canais brasileiros', access_label: 'Canal próprio — aguardando fonte de transmissão autorizada' },
   { id: 'official-tv-aparecida', name: 'TV Aparecida', kids: false, stream_url: 'https://www.a12.com/tv/tv-ao-vivo/' },
   { id: 'official-redetv', name: 'RedeTV! Ao Vivo', kids: false, stream_url: 'https://www.redetv.uol.com.br/aovivo' },
   { id: 'official-tv-brasil', name: 'TV Brasil', kids: false, stream_url: 'https://tvbrasil-stream.ebc.com.br/index.m3u8' },
