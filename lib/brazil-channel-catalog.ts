@@ -7,7 +7,7 @@ export type ImportedBrazilChannel = {
   access_label: string
 }
 
-const brazilNames = \`1001 Noites
+const brazilNames = `1001 Noites
 +MaisUm
 Adesso TV
 AgroBrasil TV
@@ -295,9 +295,9 @@ UNISUL TV
 UniTV Porto Alegre
 VEJA+ TV
 VRT Channel
-WooHoo\`.split('\n')
+WooHoo`.split('\n')
 
-const plutoNames = \`A Caçadora de Relíquias
+const plutoNames = `A Caçadora de Relíquias
 A Feiticeira
 Acumuladores Obsessivos
 Adrenalina Pura TV
@@ -461,11 +461,11 @@ TV Cultura
 UFC
 World Poker Tour
 Yu-Gi-Oh
-Z Nation\`.split('\n')
+Z Nation`.split('\n')
 
-const samsungNames = \`MyTime Movie Network Brazil
+const samsungNames = `MyTime Movie Network Brazil
 Trace Brasil
-VEJA+ TV\`.split('\n')
+VEJA+ TV`.split('\n')
 
 // Apenas endpoints oficiais/institucionais identificáveis no próprio M3U enviado.
 const verifiedPublicStreams: Record<string, string> = {
