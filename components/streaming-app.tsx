@@ -24,9 +24,16 @@ type Schedule = { channel_id: string; slot: number; program: string }
 const officialShortcutChannels: Channel[] = [
   { id: 'official-tv-aparecida', name: 'TV Aparecida', kids: false, stream_url: 'https://www.a12.com/tv/tv-ao-vivo/' },
   { id: 'official-redetv', name: 'RedeTV! Ao Vivo', kids: false, stream_url: 'https://www.redetv.uol.com.br/aovivo' },
-  { id: 'official-tv-brasil', name: 'TV Brasil', kids: false, stream_url: 'https://tvbrasil.ebc.com.br/webtv' },
+  { id: 'official-tv-brasil', name: 'TV Brasil', kids: false, stream_url: 'https://tvbrasil-stream.ebc.com.br/index.m3u8' },
   { id: 'official-canal-gov', name: 'Canal Gov', kids: false, stream_url: 'https://canalgov-stream.ebc.com.br/index.m3u8' },
   { id: 'official-canal-educacao', name: 'Canal Educação', kids: false, stream_url: 'https://canaleducacao-stream.ebc.com.br/index.m3u8' },
+  { id: 'official-canal-libras', name: 'Canal Libras', kids: false, stream_url: 'https://canallibras-stream.ebc.com.br/mux_video_ts/index-1.m3u8' },
+  { id: 'official-tv-camara', name: 'TV Câmara', kids: false, stream_url: 'https://stream3.camara.gov.br/tv1/manifest.m3u8' },
+  { id: 'official-tv-camara-2', name: 'TV Câmara 2', kids: false, stream_url: 'https://stream3.camara.gov.br/tv2/manifest.m3u8' },
+  { id: 'official-tv-cultura-fast', name: 'Cultura Fast', kids: false, stream_url: 'https://fpa-gateway.tvcultura.com.br:8181/memfs/606caef0-a290-413d-9f1f-8fcdb3a73831.m3u8' },
+  { id: 'official-tve-rs', name: 'TVE RS', kids: false, stream_url: 'https://streaming.procergs.com.br:8443/tve/stve/playlist.m3u8' },
+  { id: 'official-tv-ufop', name: 'TV UFOP', kids: false, stream_url: 'https://app.tvufop.com.br/hls/tvufop.m3u8' },
+  { id: 'official-canal-uol', name: 'Canal UOL', kids: false, stream_url: 'https://video24.mais.uol.com.br/live/6146.m3u8' },
   { id: 'official-netflix', name: 'Netflix', kids: false, stream_url: 'https://www.netflix.com/br/' },
   { id: 'official-max', name: 'Max (HBO)', kids: false, stream_url: 'https://www.max.com/br/pt' },
   { id: 'official-disney-plus', name: 'Disney+', kids: false, stream_url: 'https://www.disneyplus.com/pt-br' },
@@ -36,6 +43,8 @@ const officialShortcutChannels: Channel[] = [
   { id: 'official-prime-video', name: 'Prime Video', kids: false, stream_url: 'https://www.primevideo.com/' },
   { id: 'official-paramount-plus', name: 'Paramount+', kids: false, stream_url: 'https://www.paramountplus.com/br/' },
   { id: 'official-apple-tv', name: 'Apple TV', kids: false, stream_url: 'https://tv.apple.com/br' },
+  { id: 'official-pluto-tv', name: 'Pluto TV (canais gratuitos)', kids: false, stream_url: 'https://pluto.tv/br/watch/live-tv/' },
+  { id: 'official-samsung-tv-plus', name: 'Samsung TV Plus', kids: false, stream_url: 'https://www.samsung.com/br/tvs/smart-tv/samsung-tv-plus/' },
 ]
 type View = 'inicio' | 'lista' | 'ao-vivo' | 'admin'
 
@@ -74,8 +83,9 @@ function isExternalChannelUrl(source: string | null): boolean {
     if (url.protocol !== 'https:') return false
     const hosts = [
       'www.redetv.uol.com.br', 'redetv.uol.com.br', 'a12.com', 'cultura.uol.com.br',
-      'tvbrasil.ebc.com.br', 'canalgov.ebc.com.br', 'canaleducacao.ebc.com.br',
-      'www.netflix.com', 'www.max.com', 'www.disneyplus.com',
+      'tvbrasil.ebc.com.br', 'canalgov.ebc.com.br', 'canaleducacao.ebc.com.br', 'canallibras-stream.ebc.com.br',
+      'www.netflix.com', 'www.max.com', 'www.disneyplus.com', 'pluto.tv', 'www.pluto.tv',
+      'www.samsung.com',
       'www.espn.com.br', 'www.beinsports.com', 'globoplay.globo.com',
       'www.primevideo.com', 'www.paramountplus.com', 'tv.apple.com',
     ]
