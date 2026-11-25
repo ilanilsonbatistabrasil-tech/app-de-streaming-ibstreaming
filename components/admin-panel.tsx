@@ -8,9 +8,11 @@ import type { TitleRecord } from './title-card'
 
 type Plan = { id: string; name: string; tier: number }
 type Rights = { title_id: number; regions: string[]; starts_on: string; ends_on: string; min_plan: string }
-type Channel = { id: string; name: string; kids: boolean; stream_url: string | null }
+type Channel = { id: string; name: string; kids: boolean; stream_url: string | null; category?: string }
 type ChannelSchedule = { channel_id: string; slot: number; program: string }
 const supabase = createClient()
+
+const channelCategories = ['Filmes', 'Séries', 'Kids', 'Esportes', 'Notícias', 'Documentários e Natureza', 'Música', 'Canais brasileiros', 'Plataformas', 'Variedades']
 
 export function AdminPanel() {
   const { data: titles = [], mutate: refreshTitles } = useSWR<TitleRecord[]>('admin-titles', async () => {
@@ -41,9 +43,14 @@ export function AdminPanel() {
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const { data: channels = [], mutate: refreshChannels } = useSWR<Channel[]>('admin-channels', async () => {
-    const { data, error } = await supabase.from('canais').select('id,name:nome,kids:crianças,stream_url').order('nome')
-    if (error) throw error
-    return data ?? []
+    const categorized = await supabase.from('canais').select('id,name:nome,kids:crianças,stream_url,category:categoria').order('nome')
+    if (categorized.error && /categoria/i.test(categorized.error.message)) {
+      const legacy = await supabase.from('canais').select('id,name:nome,kids:crianças,stream_url').order('nome')
+      if (legacy.error) throw legacy.error
+      return (legacy.data ?? []) as Channel[]
+    }
+    if (categorized.error) throw categorized.error
+    return (categorized.data ?? []) as Channel[]
   })
   const { data: channelSchedule = [], mutate: refreshChannelSchedule } = useSWR<ChannelSchedule[]>('admin-channel-schedule', async () => {
     const { data, error } = await supabase.from('channel_schedule').select('channel_id,slot,program').order('slot')
@@ -54,6 +61,7 @@ export function AdminPanel() {
   const [channelName, setChannelName] = useState('')
   const [channelKids, setChannelKids] = useState(false)
   const [channelStreamUrl, setChannelStreamUrl] = useState('')
+  const [channelCategory, setChannelCategory] = useState('Variedades')
   const [channelBusy, setChannelBusy] = useState(false)
   const [channelNotice, setChannelNotice] = useState('')
   const [scheduleChannelId, setScheduleChannelId] = useState('')
@@ -91,26 +99,39 @@ export function AdminPanel() {
     setChannelName(item?.name ?? '')
     setChannelKids(item?.kids ?? false)
     setChannelStreamUrl(item?.stream_url ?? '')
+    setChannelCategory(item?.category ?? (item?.kids ? 'Kids' : 'Variedades'))
   }
 
   async function saveChannel(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setChannelBusy(true)
     setChannelNotice('')
-    const payload = { nome: channelName.trim(), crianças: channelKids, stream_url: channelStreamUrl.trim() || null }
-    const result = channelId
+    const kidsFlag = channelKids || channelCategory === 'Kids'
+    const payload = { nome: channelName.trim(), crianças: kidsFlag, stream_url: channelStreamUrl.trim() || null, categoria: channelCategory }
+    const legacyPayload = { nome: channelName.trim(), crianças: kidsFlag, stream_url: channelStreamUrl.trim() || null }
+    let result = channelId
       ? await supabase.from('canais').update(payload).eq('id', channelId)
       : await supabase.from('canais').insert({ id: crypto.randomUUID(), ...payload })
+    let categoryPending = false
+    if (result.error && /categoria/i.test(result.error.message)) {
+      categoryPending = true
+      result = channelId
+        ? await supabase.from('canais').update(legacyPayload).eq('id', channelId)
+        : await supabase.from('canais').insert({ id: crypto.randomUUID(), ...legacyPayload })
+    }
     setChannelBusy(false)
     if (result.error) {
       setChannelNotice('Não foi possível salvar o canal. Confira as permissões administrativas.')
       return
     }
-    setChannelNotice(channelId ? 'Canal atualizado.' : 'Canal cadastrado.')
+    setChannelNotice(categoryPending
+      ? 'Canal salvo. Para gravar a categoria no banco, aplique a migration de categorias do catálogo.'
+      : channelId ? 'Canal atualizado.' : 'Canal cadastrado.')
     setChannelId('')
     setChannelName('')
     setChannelKids(false)
     setChannelStreamUrl('')
+    setChannelCategory('Variedades')
     await refreshChannels()
   }
 
@@ -233,13 +254,14 @@ export function AdminPanel() {
         <form onSubmit={saveChannel} className="grid gap-4">
           <label className="flex flex-col gap-2 text-xs text-white/60">Canal para editar<select className="field-dark" value={channelId} onChange={(event) => chooseChannel(event.target.value)}><option value="">Novo canal</option>{channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}</select></label>
           <label className="flex flex-col gap-2 text-xs text-white/60">Nome do canal<input className="field-dark" required maxLength={120} value={channelName} onChange={(event) => setChannelName(event.target.value)} placeholder="Nome do canal" /></label>
-          <label className="flex flex-col gap-2 text-xs text-white/60">URL da transmissão ao vivo<input className="field-dark" type="url" value={channelStreamUrl} onChange={(event) => setChannelStreamUrl(event.target.value)} placeholder="https://servidor.com/transmissao.m3u8" /></label>
-          <p className="-mt-2 text-[10px] leading-4 text-white/35">Use uma URL de transmissão autorizada e compatível com o navegador. Streams HLS (.m3u8) podem exigir suporte adicional no navegador.</p>
+          <label className="flex flex-col gap-2 text-xs text-white/60">URL da transmissão ao vivo<input className="field-dark" type="url" value={channelStreamUrl} onChange={(event) => setChannelStreamUrl(event.target.value)} placeholder="https://servidor.com/video.mp4 ou link de vídeo compatível" /></label>
+          <label className="flex flex-col gap-2 text-xs text-white/60">Categoria<select className="field-dark" value={channelCategory} onChange={(event) => setChannelCategory(event.target.value)}>{channelCategories.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
+          <p className="-mt-2 text-[10px] leading-4 text-white/35">Use mídia autorizada: arquivo MP4/WebM, HLS (.m3u8), MPEG-DASH (.mpd) ou link incorporável de YouTube/Vimeo/Dailymotion. A reprodução depende dos codecs, CORS e permissões do provedor.</p>
           <label className="flex items-center gap-2 text-xs text-white/65"><input type="checkbox" checked={channelKids} onChange={(event) => setChannelKids(event.target.checked)} /> Canal adequado ao perfil infantil</label>
           {channelNotice && <p role="status" className="text-xs text-[#e7c981]">{channelNotice}</p>}
           <button disabled={channelBusy} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#e6b85c] text-sm font-semibold text-[#16130b] disabled:opacity-55">{channelBusy ? <LoaderCircle size={16} className="animate-spin" /> : <Save size={16} />}{channelBusy ? 'Salvando…' : channelId ? 'Salvar canal' : 'Cadastrar canal'}</button>
         </form>
-        <div className="mt-6 flex flex-col gap-2">{channels.map((channel) => <button type="button" key={channel.id} onClick={() => chooseChannel(channel.id)} className={`flex items-center gap-3 rounded-xl border px-3 py-3 text-left ${channelId === channel.id ? 'border-[#e6b85c]/30 bg-[#e6b85c]/[.06]' : 'border-white/[.06] bg-[#0c0f10]'}`}><Tv size={17} className="text-[#e6b85c]" /><span className="min-w-0 flex-1 truncate text-sm text-white/85">{channel.name}</span><span className="text-[10px] text-white/40">{channel.kids ? 'Infantil' : 'Geral'}</span></button>)}{!channels.length && <p className="text-xs text-white/35">Nenhum canal cadastrado.</p>}</div>
+        <div className="mt-6 flex flex-col gap-2">{channels.map((channel) => <button type="button" key={channel.id} onClick={() => chooseChannel(channel.id)} className={`flex items-center gap-3 rounded-xl border px-3 py-3 text-left ${channelId === channel.id ? 'border-[#e6b85c]/30 bg-[#e6b85c]/[.06]' : 'border-white/[.06] bg-[#0c0f10]'}`}><Tv size={17} className="text-[#e6b85c]" /><span className="min-w-0 flex-1 truncate text-sm text-white/85">{channel.name}</span><span className="text-[10px] text-white/40">{channel.category ?? (channel.kids ? 'Kids' : 'Categoria pendente')}</span></button>)}{!channels.length && <p className="text-xs text-white/35">Nenhum canal cadastrado.</p>}</div>
       </div>
 
       <div className="rounded-2xl border border-white/[.08] bg-[#111416] p-5 sm:p-7">

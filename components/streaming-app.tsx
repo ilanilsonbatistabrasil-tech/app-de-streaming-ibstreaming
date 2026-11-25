@@ -13,23 +13,27 @@ import { TvGuide } from './tv-guide'
 import { AdminPanel } from './admin-panel'
 import { PlayerDialog } from './player-dialog'
 import { importedBrazilChannels } from '@/lib/brazil-channel-catalog'
+import { getVideoEmbedUrl } from '@/lib/media-source'
+import { useUniversalMediaSource } from '@/lib/use-universal-media-source'
 
 const supabase = createClient()
 type Profile = { id: string; name: string; kids: boolean }
 type Account = { id: string; name: string; role: string; plan_id: string }
 type SavedRow = { title_id: number; added_at: string }
 type ProgressRow = { title_id: number; percent: number; updated_at: string }
-type Channel = { id: string; name: string; kids: boolean; stream_url: string | null; catalog_group?: string; access_label?: string }
+type Channel = { id: string; name: string; kids: boolean; stream_url: string | null; category?: string; catalog_group?: string; access_label?: string; logo_url?: string | null }
 type Schedule = { channel_id: string; slot: number; program: string }
 
 const officialShortcutChannels: Channel[] = [
+  { id: 'ibstreaming-original', name: 'IBSTREAMING', kids: false, stream_url: null, category: 'Canais brasileiros', catalog_group: 'Canais brasileiros', access_label: 'Canal próprio — aguardando fonte de transmissão autorizada' },
   { id: 'official-tv-aparecida', name: 'TV Aparecida', kids: false, stream_url: 'https://www.a12.com/tv/tv-ao-vivo/' },
   { id: 'official-redetv', name: 'RedeTV! Ao Vivo', kids: false, stream_url: 'https://www.redetv.uol.com.br/aovivo' },
-  { id: 'official-tv-brasil', name: 'TV Brasil', kids: false, stream_url: 'https://tvbrasil-stream.ebc.com.br/index.m3u8' },
-  { id: 'official-canal-gov', name: 'Canal Gov', kids: false, stream_url: 'https://canalgov-stream.ebc.com.br/index.m3u8' },
-  { id: 'official-canal-educacao', name: 'Canal Educação', kids: false, stream_url: 'https://canaleducacao-stream.ebc.com.br/index.m3u8' },
+  { id: 'official-tv-brasil', name: 'TV Brasil', kids: false, stream_url: 'https://aovivo.ebc.com.br/embed-tvbrasil.html', category: 'Canais brasileiros' },
+  { id: 'official-canal-gov', name: 'Canal Gov', kids: false, stream_url: 'https://aovivo.ebc.com.br/embed-canalgov.html?autoplay=1&v=2', category: 'Canais brasileiros' },
+  { id: 'official-canal-educacao', name: 'Canal Educação', kids: false, stream_url: 'https://aovivo.ebc.com.br/embed-canaleducacao.html', category: 'Canais brasileiros' },
   { id: 'official-canal-libras', name: 'Canal Libras', kids: false, stream_url: 'https://canallibras-stream.ebc.com.br/mux_video_ts/index-1.m3u8' },
-  { id: 'official-tv-camara', name: 'TV Câmara', kids: false, stream_url: 'https://stream3.camara.gov.br/tv1/manifest.m3u8' },
+  { id: 'official-tv-camara', name: 'TV Câmara', kids: false, stream_url: 'https://www.camara.leg.br/tv/aovivo/embed', category: 'Canais brasileiros' },
+  { id: 'official-tv-cultura', name: 'TV Cultura', kids: false, stream_url: 'https://culturaplay.tvcultura.com.br/channels/14/embed', category: 'Canais brasileiros' },
   { id: 'official-tv-camara-2', name: 'TV Câmara 2', kids: false, stream_url: 'https://stream3.camara.gov.br/tv2/manifest.m3u8' },
   { id: 'official-tv-cultura-fast', name: 'Cultura Fast', kids: false, stream_url: 'https://fpa-gateway.tvcultura.com.br:8181/memfs/606caef0-a290-413d-9f1f-8fcdb3a73831.m3u8' },
   { id: 'official-tve-rs', name: 'TVE RS', kids: false, stream_url: 'https://streaming.procergs.com.br:8443/tve/stve/playlist.m3u8' },
@@ -46,10 +50,38 @@ const officialShortcutChannels: Channel[] = [
   { id: 'official-apple-tv', name: 'Apple TV', kids: false, stream_url: 'https://tv.apple.com/br' },
   { id: 'official-pluto-tv', name: 'Pluto TV (canais gratuitos)', kids: false, stream_url: 'https://pluto.tv/br/watch/live-tv/' },
   { id: 'official-samsung-tv-plus', name: 'Samsung TV Plus', kids: false, stream_url: 'https://www.samsung.com/br/tvs/smart-tv/samsung-tv-plus/' },
-].map((channel) => ({ ...channel, catalog_group: 'Plataformas oficiais', access_label: 'Abrir página oficial do serviço' }))
+].map((channel) => ({ ...channel, catalog_group: 'Plataformas oficiais', access_label: isOfficialEmbedUrl(channel.stream_url) ? 'Assistir ao vivo no IBStreaming' : 'Abrir página oficial do serviço' }))
 
 function normalizeChannelName(value: string): string {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+function getOfficialPlaybackUrl(channelName: string): string | null {
+  const normalized = normalizeChannelName(channelName)
+  const officialEmbeds: Record<string, string> = {
+    tvbrasil: 'https://aovivo.ebc.com.br/embed-tvbrasil.html',
+    canalgov: 'https://aovivo.ebc.com.br/embed-canalgov.html?autoplay=1&v=2',
+    canaleducacao: 'https://aovivo.ebc.com.br/embed-canaleducacao.html',
+    tvcamara: 'https://www.camara.leg.br/tv/aovivo/embed',
+    tvcultura: 'https://culturaplay.tvcultura.com.br/channels/14/embed',
+  }
+  return officialEmbeds[normalized] ?? null
+}
+
+function findChannelLogo(name: string, logos: Record<string, string>): string | null {
+  const normalized = normalizeChannelName(name)
+  if (logos[normalized]) return logos[normalized]
+
+  // As playlists often add quality labels or suffixes to the channel name,
+  // allow a conservative prefix match for names long enough to be distinctive.
+  if (normalized.length < 6) return null
+  const matches = Object.entries(logos)
+    .filter(([key]) => key.length >= 6 && (key.startsWith(normalized) || normalized.startsWith(key)))
+    .sort((a, b) => Math.abs(a[0].length - normalized.length) - Math.abs(b[0].length - normalized.length))
+
+  if (!matches.length) return null
+  if (matches.length > 1 && Math.abs(matches[0][0].length - normalized.length) === Math.abs(matches[1][0].length - normalized.length)) return null
+  return matches[0][1]
 }
 type View = 'inicio' | 'lista' | 'ao-vivo' | 'admin'
 
@@ -110,15 +142,15 @@ function isOfficialEmbedUrl(source: string | null): boolean {
     const isCameraEmbed =
       (url.hostname === 'www.camara.leg.br' && url.pathname.startsWith('/tv/aovivo/embed')) ||
       (url.hostname === 'www2.camara.leg.br' && url.pathname === '/camaranoticias/tv/embedAoVivo.html')
-    const isTvBrasilEmbed =
-      url.hostname === 'aovivo.ebc.com.br' && url.pathname === '/embed-tvbrasil.html'
+    const isEbcEmbed =
+      url.hostname === 'aovivo.ebc.com.br' && /^\/embed-(tvbrasil|canalgov|canaleducacao)\.html$/.test(url.pathname)
     const isTvSenadoEmbed =
       url.hostname === 'www.youtube.com' && url.pathname.startsWith('/embed/') && url.pathname.slice(7).length === 11 && /^[A-Za-z0-9_-]+$/.test(url.pathname.slice(7))
 
     const isTvCulturaEmbed =
       url.hostname === 'culturaplay.tvcultura.com.br' && url.pathname === '/channels/14/embed'
 
-    return isCameraEmbed || isTvBrasilEmbed || isTvSenadoEmbed || isTvCulturaEmbed
+    return isCameraEmbed || isEbcEmbed || isTvSenadoEmbed || isTvCulturaEmbed
   } catch {
     return false
   }
@@ -130,73 +162,15 @@ function LiveChannelPlayer({ channel, onClose }: { channel: Channel; onClose: ()
 
   const isOfficialEmbed = isOfficialEmbedUrl(channel.stream_url)
 
-  useEffect(() => {
-    const video = videoRef.current
-    const source = channel.stream_url
-    if (!video || !source || isOfficialEmbed) return
-
-    let hls: HlsInstance | null = null
-    let cancelled = false
-    let script: HTMLScriptElement | null = null
-
-    const startPlayback = () => {
-      if (cancelled) return
-      const Hls = (window as WindowWithHls).Hls
-
-      if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = source
-        setPlayerMessage('Se a transmissão não iniciar, confira se o endereço está ativo e permite reprodução neste site.')
-        void video.play().catch(() => setPlayerMessage('Clique em reproduzir. Se não funcionar, confira o endereço e as permissões da transmissão.'))
-        return
-      }
-
-      if (Hls?.isSupported()) {
-        hls = new Hls({ enableWorker: true })
-        hls.loadSource(source)
-        hls.attachMedia(video)
-        hls.on(Hls.Events.ERROR, (_event, data) => {
-          if (data.fatal) setPlayerMessage('Falha ao carregar o canal. Verifique se a URL HLS está ativa e permite acesso pelo navegador (CORS).')
-        })
-        setPlayerMessage('Carregando transmissão HLS…')
-        return
-      }
-
-      setPlayerMessage('Este navegador não oferece suporte à reprodução HLS.')
-    }
-
-    const existingHlsScript = document.querySelector<HTMLScriptElement>('script[data-ib-hls="true"]')
-    if ((window as WindowWithHls).Hls) {
-      startPlayback()
-    } else if (existingHlsScript) {
-      existingHlsScript.addEventListener('load', startPlayback, { once: true })
-      existingHlsScript.addEventListener('error', () => setPlayerMessage('Não foi possível carregar o módulo de reprodução HLS.'), { once: true })
-    } else {
-      script = document.createElement('script')
-      script.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.6.15/dist/hls.min.js'
-      script.async = true
-      script.dataset.ibHls = 'true'
-      script.onload = startPlayback
-      script.onerror = () => setPlayerMessage('Não foi possível carregar o módulo de reprodução HLS.')
-      document.head.appendChild(script)
-    }
-
-    video.onerror = () => setPlayerMessage('O navegador não conseguiu abrir esta transmissão. Verifique a URL, o formato e o acesso do servidor.')
-    return () => {
-      cancelled = true
-      video.pause()
-      video.removeAttribute('src')
-      video.load()
-      video.onerror = null
-      hls?.destroy()
-    }
-  }, [channel.id, channel.stream_url, isOfficialEmbed])
+  const embedUrl = isOfficialEmbed ? channel.stream_url : getVideoEmbedUrl(channel.stream_url)
+  useUniversalMediaSource(videoRef, channel.stream_url, setPlayerMessage, Boolean(channel.stream_url) && !embedUrl)
 
   return (
     <div>
-      {isOfficialEmbed ? (
+      {embedUrl ? (
         <iframe
-          src={channel.stream_url ?? undefined}
-          title={`Transmissão ao vivo - ${channel.name}`}
+          src={embedUrl}
+          title={`Vídeo incorporado - ${channel.name}`}
           allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
           allowFullScreen
           referrerPolicy="strict-origin-when-cross-origin"
@@ -205,7 +179,7 @@ function LiveChannelPlayer({ channel, onClose }: { channel: Channel; onClose: ()
       ) : (
         <video ref={videoRef} controls autoPlay playsInline preload="none" className="aspect-video w-full bg-black" />
       )}
-      <p role="status" className="px-5 py-3 text-xs text-white/45">{playerMessage}</p>
+      <p role="status" className="px-5 py-3 text-xs text-white/45">{embedUrl ? 'Reprodução incorporada pelo provedor.' : playerMessage}</p>
       <div className="flex justify-end px-5 pb-4">
         <button type="button" onClick={onClose} className="rounded-lg border border-white/10 px-4 py-2 text-xs text-white/70 hover:bg-white/[.06]">Fechar</button>
       </div>
@@ -219,6 +193,7 @@ function EmptyState({ title, description }: { title: string; description: string
 
 export function StreamingApp() {
   const [view, setView] = useState<View>('inicio')
+  const [channelLogos, setChannelLogos] = useState<Record<string, string>>({})
   const [profile, setProfile] = useState<Profile | null>(null)
   const [profileReady, setProfileReady] = useState(false)
   const [streamResult, setStreamResult] = useState<StreamResult | null>(null)
@@ -245,6 +220,14 @@ export function StreamingApp() {
   }, { shouldRetryOnError: false })
   const userId = user?.id
   const playbackStorageKey = userId && profile ? `ibstreaming-playback:${userId}:${profile.id}` : null
+  useEffect(() => {
+    let active = true
+    fetch('/api/playlist/logos', { cache: 'no-store' })
+      .then((response) => response.ok ? response.json() : {})
+      .then((logos: Record<string, string>) => { if (active) setChannelLogos(logos) })
+      .catch(() => { if (active) setChannelLogos({}) })
+    return () => { active = false }
+  }, [])
   useEffect(() => {
     console.info('[IBStreaming login] Estado de autenticação', { loading: authLoading, hasUser: Boolean(user), hasError: Boolean(authError) })
   }, [authLoading, user, authError])
@@ -274,9 +257,15 @@ export function StreamingApp() {
     return data ?? []
   })
   const { data: channels = [] } = useSWR<Channel[]>(userId ? 'channels' : null, async () => {
-    const { data, error } = await supabase.from('canais').select('id,name:nome,kids:crianças,stream_url').order('nome')
-    if (error) throw error
-    return data ?? []
+    const categorized = await supabase.from('canais').select('id,name:nome,kids:crianças,stream_url,category:categoria').order('nome')
+    if (categorized.error && /categoria/i.test(categorized.error.message)) {
+      // Compatibilidade temporária até a migration de categorias ser aplicada no Supabase.
+      const legacy = await supabase.from('canais').select('id,name:nome,kids:crianças,stream_url').order('nome')
+      if (legacy.error) throw legacy.error
+      return (legacy.data ?? []) as Channel[]
+    }
+    if (categorized.error) throw categorized.error
+    return (categorized.data ?? []) as Channel[]
   })
   const { data: schedule = [] } = useSWR<Schedule[]>(userId ? 'channel-schedule' : null, async () => {
     const { data, error } = await supabase.from('channel_schedule').select('channel_id,slot,program').order('slot')
@@ -495,7 +484,7 @@ export function StreamingApp() {
     ...channels,
     ...officialShortcutChannels.filter((shortcut) => !channels.some((channel) => normalizeChannelName(channel.name) === normalizeChannelName(shortcut.name))),
     ...importedBrazilChannels.filter((entry) => !existingNames.has(normalizeChannelName(entry.name))),
-  ].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+  ].map((channel) => ({ ...channel, stream_url: getOfficialPlaybackUrl(channel.name) || channel.stream_url, logo_url: channel.logo_url || findChannelLogo(channel.name, channelLogos) })).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
   const visibleChannels = profile.kids ? catalogChannels.filter((channel) => channel.kids) : catalogChannels
   const renderCards = (items: TitleRecord[], showProgress = false) => items.length ? <div className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">{items.map((item) => <TitleCard key={item.id} title={item} progress={showProgress ? progressById.get(item.id) : undefined} saved={savedIds.includes(item.id)} onPlay={(selected) => playTitle(selected)} onToggleList={toggleSaved} />)}</div> : null
 
@@ -543,7 +532,7 @@ export function StreamingApp() {
     </>}
 
     {view === 'lista' && <section className="mx-auto max-w-[1600px] px-5 pb-20 pt-9 sm:px-8 lg:px-12"><SectionHeading eyebrow="Sua coleção pessoal" title="Minha lista" trailing={<span className="text-xs text-white/40">{savedTitles.length} títulos</span>} />{savedTitles.length ? renderCards(savedTitles, true) : <EmptyState title="Sua lista ainda está vazia" description="Use o ícone de marcador nos títulos para guardar aqui o que quer assistir depois." />}</section>}
-    {view === 'ao-vivo' && <TvGuide channels={visibleChannels} schedule={schedule.filter((item) => visibleChannels.some((channel) => channel.id === item.channel_id))} onPlayChannel={(channel) => { if (!channel.stream_url) { showNotice(`${channel.name}: o item está no catálogo, mas ainda não há transmissão pública validada. Consulte o serviço oficial do canal.`); return } if (isExternalChannelUrl(channel.stream_url)) { window.open(channel.stream_url, '_blank', 'noopener,noreferrer'); return } setPlayerChannel(channel) }} />}
+    {view === 'ao-vivo' && <TvGuide channels={visibleChannels} schedule={schedule.filter((item) => visibleChannels.some((channel) => channel.id === item.channel_id))} onPlayChannel={(channel) => { if (!channel.stream_url) { showNotice(`${channel.name}: ${channel.access_label ?? 'ainda não há uma fonte de mídia cadastrada.'} Cadastre uma URL HLS autorizada na Administração.`); return } if (isExternalChannelUrl(channel.stream_url)) { window.open(channel.stream_url, '_blank', 'noopener,noreferrer'); return } setPlayerChannel(channel) }} />}
     {view === 'admin' && (isAdmin ? <AdminPanel /> : <section className="mx-auto max-w-3xl px-5 py-24 text-center"><Shield size={28} className="mx-auto text-[#e6b85c]" /><h1 className="mt-4 text-2xl font-semibold text-white">Acesso restrito</h1><p className="mt-2 text-sm text-white/50">Esta área está disponível apenas para contas com role admin.</p></section>)}
 
     {playerChannel && <div role="presentation" className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setPlayerChannel(null) }}><section role="dialog" aria-modal="true" aria-labelledby="live-player-title" className="w-full max-w-5xl overflow-hidden rounded-2xl border border-white/10 bg-[#101315] shadow-2xl"><header className="flex items-center justify-between border-b border-white/[.08] px-5 py-4"><div><p className="text-[10px] font-semibold uppercase tracking-[.17em] text-[#e6b85c]">Transmissão ao vivo</p><h2 id="live-player-title" className="mt-1 text-base font-semibold text-white">{playerChannel.name}</h2></div><button type="button" onClick={() => setPlayerChannel(null)} aria-label="Fechar transmissão" className="grid size-9 place-items-center rounded-full text-white/50 hover:bg-white/[.08] hover:text-white"><X size={19} /></button></header><LiveChannelPlayer channel={playerChannel} onClose={() => setPlayerChannel(null)} /></section></div>}
