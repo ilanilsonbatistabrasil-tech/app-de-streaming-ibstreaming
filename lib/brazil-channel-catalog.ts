@@ -484,7 +484,7 @@ const verifiedPublicStreams: Record<string, string> = {
 
 
 function normalizeName(value: string): string {
-  return value.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '')
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '')
 }
 
 function uniqueNames(values: string[]): string[] {
