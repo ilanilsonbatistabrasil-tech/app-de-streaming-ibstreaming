@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { CalendarDays, CirclePlay, Radio, Tv } from 'lucide-react'
 
-type Channel = { id: string; name: string; kids: boolean; stream_url: string | null; catalog_group?: string; access_label?: string }
+type Channel = { id: string; name: string; kids: boolean; stream_url: string | null; category?: string; catalog_group?: string; access_label?: string }
 type Schedule = { channel_id: string; slot: number; program: string }
 
 function isExternalService(url: string | null): boolean {
@@ -29,6 +29,9 @@ const categoryOrder = [
 ]
 
 function getChannelCategory(channel: Channel): string {
+  const savedCategory = channel.category?.trim()
+  if (savedCategory && categoryOrder.includes(savedCategory)) return savedCategory
+
   const name = channel.name
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
