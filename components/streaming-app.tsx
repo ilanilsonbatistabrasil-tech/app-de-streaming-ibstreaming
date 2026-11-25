@@ -24,6 +24,9 @@ type Schedule = { channel_id: string; slot: number; program: string }
 const officialShortcutChannels: Channel[] = [
   { id: 'official-tv-aparecida', name: 'TV Aparecida', kids: false, stream_url: 'https://www.a12.com/tv/tv-ao-vivo/' },
   { id: 'official-redetv', name: 'RedeTV! Ao Vivo', kids: false, stream_url: 'https://www.redetv.uol.com.br/aovivo' },
+  { id: 'official-tv-brasil', name: 'TV Brasil', kids: false, stream_url: 'https://tvbrasil.ebc.com.br/webtv' },
+  { id: 'official-canal-gov', name: 'Canal Gov', kids: false, stream_url: 'https://canalgov.ebc.com.br/ao-vivo' },
+  { id: 'official-canal-educacao', name: 'Canal Educação', kids: false, stream_url: 'https://canaleducacao.ebc.com.br/ao-vivo' },
   { id: 'official-netflix', name: 'Netflix', kids: false, stream_url: 'https://www.netflix.com/br/' },
   { id: 'official-max', name: 'Max (HBO)', kids: false, stream_url: 'https://www.max.com/br/pt' },
   { id: 'official-disney-plus', name: 'Disney+', kids: false, stream_url: 'https://www.disneyplus.com/pt-br' },
@@ -71,6 +74,7 @@ function isExternalChannelUrl(source: string | null): boolean {
     if (url.protocol !== 'https:') return false
     const hosts = [
       'www.redetv.uol.com.br', 'redetv.uol.com.br', 'a12.com', 'cultura.uol.com.br',
+      'tvbrasil.ebc.com.br', 'canalgov.ebc.com.br', 'canaleducacao.ebc.com.br',
       'www.netflix.com', 'www.max.com', 'www.disneyplus.com',
       'www.espn.com.br', 'www.beinsports.com', 'globoplay.globo.com',
       'www.primevideo.com', 'www.paramountplus.com', 'tv.apple.com',
