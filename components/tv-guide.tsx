@@ -22,12 +22,35 @@ function isExternalService(url: string | null): boolean {
   }
 }
 
+const categoryOrder = [
+  'Filmes', 'Séries', 'Kids', 'Esportes', 'Notícias',
+  'Documentários e Natureza', 'Música', 'Canais brasileiros',
+  'Plataformas', 'Variedades',
+]
+
+function getChannelCategory(channel: Channel): string {
+  const name = channel.name.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase()
+  if (channel.kids || /kids|infantil|nick jr|baby shark|babyfirst|gloob|bob esponja|turma da monica|desenhos|cartoon/.test(name)) return 'Kids'
+  if (/espn|bein|sport|esporte|combate|ufc|mma|fifa|n sports|band sports|pluto tv —.*(fight|luta)/.test(name)) return 'Esportes'
+  if (/telecine|cinema|cine |cine$|movies|filmes|film|netmovies|adrenalina pura/.test(name)) return 'Filmes'
+  if (/series|séries|novelas|novela|sitcom|pluto tv —.*series/.test(name)) return 'Séries'
+  if (/news|noticias|notícias|cnn|jornal|jovem pan|bm&c|globo news|record news|sbt news|euronews|times brasil/.test(name)) return 'Notícias'
+  if (/document|nature|natureza|history|historia|história|discovery|animal|smithsonian|travel|agro|fish tv|viagens|investigacao|investigação/.test(name)) return 'Documentários e Natureza'
+  if (/music|musica|música|radio|rádio|kpop|stingray|rock|karaoke|karaokê/.test(name)) return 'Música'
+  if (isExternalService(channel.stream_url) && !/tv ao vivo|rede tv|tv aparecida/.test(name)) return 'Plataformas'
+  if (channel.catalog_group === 'Canais brasileiros' || /^(tv |rede |sbt|record|globo|band|canal |cultura|rede tv)/.test(name)) return 'Canais brasileiros'
+  return 'Variedades'
+}
+
 export function TvGuide({ channels, schedule, onPlayChannel }: { channels: Channel[]; schedule: Schedule[]; onPlayChannel: (channel: Channel) => void }) {
   const [search, setSearch] = useState('')
   const [selectedGroup, setSelectedGroup] = useState('Todos')
-  const groups = useMemo(() => ['Todos', ...Array.from(new Set(channels.map((channel) => channel.catalog_group ?? (isExternalService(channel.stream_url) ? 'Plataformas oficiais' : 'Canais já cadastrados')))).sort((a, b) => a.localeCompare(b, 'pt-BR'))], [channels])
+  const groups = useMemo(() => {
+    const present = new Set(channels.map(getChannelCategory))
+    return ['Todos', ...categoryOrder.filter((category) => present.has(category))]
+  }, [channels])
   const filteredChannels = useMemo(() => channels.filter((channel) => {
-    const group = channel.catalog_group ?? (isExternalService(channel.stream_url) ? 'Plataformas oficiais' : 'Canais já cadastrados')
+    const group = getChannelCategory(channel)
     const matchesGroup = selectedGroup === 'Todos' || group === selectedGroup
     const matchesSearch = channel.name.toLocaleLowerCase('pt-BR').includes(search.trim().toLocaleLowerCase('pt-BR'))
     return matchesGroup && matchesSearch
