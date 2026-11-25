@@ -49,7 +49,7 @@ const officialShortcutChannels: Channel[] = [
 ].map((channel) => ({ ...channel, catalog_group: 'Plataformas oficiais', access_label: 'Abrir página oficial do serviço' }))
 
 function normalizeChannelName(value: string): string {
-  return value.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '')
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '')
 }
 type View = 'inicio' | 'lista' | 'ao-vivo' | 'admin'
 
