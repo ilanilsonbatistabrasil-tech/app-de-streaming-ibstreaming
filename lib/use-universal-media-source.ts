@@ -58,6 +58,17 @@ export function useUniversalMediaSource(
     let cancelled = false
     let hls: HlsInstance | null = null
     let dash: DashPlayer | null = null
+    let parsedSource: URL
+    try {
+      parsedSource = new URL(source)
+    } catch {
+      setMessage('Endereço de vídeo inválido.')
+      return
+    }
+    if (parsedSource.protocol !== 'https:') {
+      setMessage('Por segurança, o player aceita endereços HTTPS de vídeo.')
+      return
+    }
     const kind = getMediaSourceKind(source)
 
     const setSafeMessage = (message: string) => {
