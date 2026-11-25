@@ -274,7 +274,7 @@ export function StreamingApp() {
     return data ?? []
   })
   const { data: channels = [] } = useSWR<Channel[]>(userId ? 'channels' : null, async () => {
-    const { data, error } = await supabase.from('channels').select('id,name,kids,stream_url').order('name')
+    const { data, error } = await supabase.from('canais').select('id,name:nome,kids:crianças,stream_url').order('nome')
     if (error) throw error
     return data ?? []
   })
