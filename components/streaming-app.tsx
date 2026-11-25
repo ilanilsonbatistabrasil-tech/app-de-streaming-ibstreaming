@@ -19,7 +19,7 @@ type Profile = { id: string; name: string; kids: boolean }
 type Account = { id: string; name: string; role: string; plan_id: string }
 type SavedRow = { title_id: number; added_at: string }
 type ProgressRow = { title_id: number; percent: number; updated_at: string }
-type Channel = { id: string; name: string; kids: boolean; stream_url: string | null; catalog_group?: string; access_label?: string }
+type Channel = { id: string; name: string; kids: boolean; stream_url: string | null; category?: string; catalog_group?: string; access_label?: string }
 type Schedule = { channel_id: string; slot: number; program: string }
 
 const officialShortcutChannels: Channel[] = [
@@ -274,9 +274,15 @@ export function StreamingApp() {
     return data ?? []
   })
   const { data: channels = [] } = useSWR<Channel[]>(userId ? 'channels' : null, async () => {
-    const { data, error } = await supabase.from('canais').select('id,name:nome,kids:crianças,stream_url').order('nome')
-    if (error) throw error
-    return data ?? []
+    const categorized = await supabase.from('canais').select('id,name:nome,kids:crianças,stream_url,category:categoria').order('nome')
+    if (categorized.error && /categoria/i.test(categorized.error.message)) {
+      // Compatibilidade temporária até a migration de categorias ser aplicada no Supabase.
+      const legacy = await supabase.from('canais').select('id,name:nome,kids:crianças,stream_url').order('nome')
+      if (legacy.error) throw legacy.error
+      return (legacy.data ?? []) as Channel[]
+    }
+    if (categorized.error) throw categorized.error
+    return (categorized.data ?? []) as Channel[]
   })
   const { data: schedule = [] } = useSWR<Schedule[]>(userId ? 'channel-schedule' : null, async () => {
     const { data, error } = await supabase.from('channel_schedule').select('channel_id,slot,program').order('slot')
