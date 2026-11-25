@@ -1,10 +1,23 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { CalendarDays, CirclePlay, Radio, Tv } from 'lucide-react'
 
-type Channel = { id: string; name: string; kids: boolean; stream_url: string | null; category?: string; catalog_group?: string; access_label?: string }
+type Channel = { id: string; name: string; kids: boolean; stream_url: string | null; category?: string; catalog_group?: string; access_label?: string; logo_url?: string | null }
 type Schedule = { channel_id: string; slot: number; program: string }
+
+
+function ChannelLogo({ channel }: { channel: Channel }) {
+  const [failed, setFailed] = useState(false)
+  return channel.logo_url && !failed ? (
+    <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl border border-white/[.08] bg-white p-1.5">
+      <img src={channel.logo_url} alt={`Logo ${channel.name}`} loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} className="h-full w-full object-contain" />
+    </span>
+  ) : (
+    <ChannelLogo channel={channel} />
+  )
+}
 
 function isExternalService(url: string | null): boolean {
   if (!url) return false
