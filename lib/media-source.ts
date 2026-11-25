@@ -24,7 +24,7 @@ export function getVideoEmbedUrl(source: string | null): string | null {
     if (url.protocol !== 'https:') return null
     const host = url.hostname.toLowerCase()
 
-    if (host === 'youtu.be' || host === 'www.youtu.be' || host.endsWith('youtube.com') || host.endsWith('youtube-nocookie.com')) {
+    if (host === 'youtu.be' || host === 'www.youtu.be' || host === 'youtube.com' || host.endsWith('.youtube.com') || host === 'youtube-nocookie.com' || host.endsWith('.youtube-nocookie.com')) {
       let videoId = ''
       if (host === 'youtu.be' || host === 'www.youtu.be') {
         videoId = url.pathname.split('/').filter(Boolean)[0] ?? ''
