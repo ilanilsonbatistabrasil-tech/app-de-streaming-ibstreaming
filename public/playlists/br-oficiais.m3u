@@ -1,0 +1,25 @@
+#EXTM3U
+# Playlist IBStreaming: canais gratuitos com endpoints oficiais ou institucionais identificáveis.
+# Fonte de referência: IPTV-org (arquivo enviado pelo usuário). Entradas por assinatura e hosts de terceiros não verificados foram excluídos.
+#EXTINF:-1 tvg-name="TV Brasil" group-title="Públicos",TV Brasil
+https://tvbrasil-stream.ebc.com.br/index.m3u8
+#EXTINF:-1 tvg-name="Canal Gov" group-title="Públicos",Canal Gov
+https://canalgov-stream.ebc.com.br/index.m3u8
+#EXTINF:-1 tvg-name="Canal Educação" group-title="Públicos",Canal Educação
+https://canaleducacao-stream.ebc.com.br/index.m3u8
+#EXTINF:-1 tvg-name="Canal Libras" group-title="Públicos",Canal Libras
+https://canallibras-stream.ebc.com.br/mux_video_ts/index-1.m3u8
+#EXTINF:-1 tvg-name="TV Câmara" group-title="Públicos",TV Câmara
+https://stream3.camara.gov.br/tv1/manifest.m3u8
+#EXTINF:-1 tvg-name="TV Câmara 2" group-title="Públicos",TV Câmara 2 (transmissão intermitente)
+https://stream3.camara.gov.br/tv2/manifest.m3u8
+#EXTINF:-1 tvg-name="TV Cultura" group-title="Públicos",TV Cultura
+https://player-tvcultura.stream.uol.com.br/live/tvcultura.m3u8
+#EXTINF:-1 tvg-name="Cultura Fast" group-title="Públicos",Cultura Fast
+https://fpa-gateway.tvcultura.com.br:8181/memfs/606caef0-a290-413d-9f1f-8fcdb3a73831.m3u8
+#EXTINF:-1 tvg-name="TVE RS" group-title="Públicos",TVE RS
+https://streaming.procergs.com.br:8443/tve/stve/playlist.m3u8
+#EXTINF:-1 tvg-name="TV UFOP" group-title="Universitários",TV UFOP
+https://app.tvufop.com.br/hls/tvufop.m3u8
+#EXTINF:-1 tvg-name="Canal UOL" group-title="Notícias",Canal UOL
+https://video24.mais.uol.com.br/live/6146.m3u8
