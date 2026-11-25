@@ -58,7 +58,7 @@ function getChannelCategory(channel: Channel): string {
 
   // Emissoras públicas, abertas e legislativas do Brasil.
   const brazilianBroadcaster =
-    /\b(tv brasil|tv cultura|tv escola|tv aparecida|rede tv|redetv|tv senado|tv camara|tv camara dos deputados|tv justica|tv justiça|canal gov|tv brasil central|tv assembleia|tv ale|tv legislativa|tv universit[aá]ria|tv diario|tv diario|tv gazeta|tv record|record tv|record|sbt|globo|band|canal brasil|futura|tv novo tempo|canal rural|tv evangelizar|tv pai eterno)\b/.test(name) ||
+    /\b(ibstreaming|tv brasil|tv cultura|tv escola|tv aparecida|rede tv|redetv|tv senado|tv camara|tv camara dos deputados|tv justica|tv justiça|canal gov|tv brasil central|tv assembleia|tv ale|tv legislativa|tv universit[aá]ria|tv diario|tv diario|tv gazeta|tv record|record tv|record|sbt|globo|band|canal brasil|futura|tv novo tempo|canal rural|tv evangelizar|tv pai eterno)\b/.test(name) ||
     /^(tv-brasil|tv-cultura|tv-senado|tv-camara|tv-justica|tv-aparecida|redetv|canal-gov)$/.test(id) ||
     channel.catalog_group === 'Canais brasileiros'
   if (brazilianBroadcaster) return 'Canais brasileiros'
