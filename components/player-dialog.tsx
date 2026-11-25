@@ -57,7 +57,6 @@ export function PlayerDialog({ title, stream, loading, message, onClose, onVerif
 
     let cancelled = false
     let hls: { destroy: () => void } | null = null
-    let script: HTMLScriptElement | null = null
     type HlsApi = {
       new (config?: { enableWorker?: boolean }): {
         loadSource: (url: string) => void
