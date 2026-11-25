@@ -138,10 +138,10 @@ function LiveChannelPlayer({ channel, onClose }: { channel: Channel; onClose: ()
 
   return (
     <div>
-      {isOfficialEmbed ? (
+      {embedUrl ? (
         <iframe
-          src={embedUrl ?? undefined}
-          title={`Transmissão ao vivo - ${channel.name}`}
+          src={embedUrl}
+          title={`Vídeo incorporado - ${channel.name}`}
           allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
           allowFullScreen
           referrerPolicy="strict-origin-when-cross-origin"
