@@ -13,6 +13,8 @@ function isExternalService(url: string | null): boolean {
     return [
       'www.netflix.com', 'www.max.com', 'www.disneyplus.com',
       'www.espn.com.br', 'www.beinsports.com', 'globoplay.globo.com',
+      'pluto.tv', 'www.pluto.tv', 'www.samsung.com',
+      'www.a12.com', 'a12.com', 'www.redetv.uol.com.br', 'redetv.uol.com.br',
       'www.primevideo.com', 'www.paramountplus.com', 'tv.apple.com',
     ].some((domain) => host === domain || host.endsWith('.' + domain))
   } catch {
