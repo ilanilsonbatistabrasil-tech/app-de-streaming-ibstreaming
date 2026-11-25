@@ -21,7 +21,7 @@ type Profile = { id: string; name: string; kids: boolean }
 type Account = { id: string; name: string; role: string; plan_id: string }
 type SavedRow = { title_id: number; added_at: string }
 type ProgressRow = { title_id: number; percent: number; updated_at: string }
-type Channel = { id: string; name: string; kids: boolean; stream_url: string | null; category?: string; catalog_group?: string; access_label?: string }
+type Channel = { id: string; name: string; kids: boolean; stream_url: string | null; category?: string; catalog_group?: string; access_label?: string; logo_url?: string | null }
 type Schedule = { channel_id: string; slot: number; program: string }
 
 const officialShortcutChannels: Channel[] = [
@@ -164,6 +164,7 @@ function EmptyState({ title, description }: { title: string; description: string
 
 export function StreamingApp() {
   const [view, setView] = useState<View>('inicio')
+  const [channelLogos, setChannelLogos] = useState<Record<string, string>>({})
   const [profile, setProfile] = useState<Profile | null>(null)
   const [profileReady, setProfileReady] = useState(false)
   const [streamResult, setStreamResult] = useState<StreamResult | null>(null)
@@ -190,6 +191,14 @@ export function StreamingApp() {
   }, { shouldRetryOnError: false })
   const userId = user?.id
   const playbackStorageKey = userId && profile ? `ibstreaming-playback:${userId}:${profile.id}` : null
+  useEffect(() => {
+    let active = true
+    fetch('/api/playlist/logos', { cache: 'no-store' })
+      .then((response) => response.ok ? response.json() : {})
+      .then((logos: Record<string, string>) => { if (active) setChannelLogos(logos) })
+      .catch(() => { if (active) setChannelLogos({}) })
+    return () => { active = false }
+  }, [])
   useEffect(() => {
     console.info('[IBStreaming login] Estado de autenticação', { loading: authLoading, hasUser: Boolean(user), hasError: Boolean(authError) })
   }, [authLoading, user, authError])
@@ -446,7 +455,7 @@ export function StreamingApp() {
     ...channels,
     ...officialShortcutChannels.filter((shortcut) => !channels.some((channel) => normalizeChannelName(channel.name) === normalizeChannelName(shortcut.name))),
     ...importedBrazilChannels.filter((entry) => !existingNames.has(normalizeChannelName(entry.name))),
-  ].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+  ].map((channel) => ({ ...channel, logo_url: channel.logo_url || channelLogos[normalizeChannelName(channel.name)] || null })).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
   const visibleChannels = profile.kids ? catalogChannels.filter((channel) => channel.kids) : catalogChannels
   const renderCards = (items: TitleRecord[], showProgress = false) => items.length ? <div className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">{items.map((item) => <TitleCard key={item.id} title={item} progress={showProgress ? progressById.get(item.id) : undefined} saved={savedIds.includes(item.id)} onPlay={(selected) => playTitle(selected)} onToggleList={toggleSaved} />)}</div> : null
 
