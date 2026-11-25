@@ -106,8 +106,9 @@ export function AdminPanel() {
     event.preventDefault()
     setChannelBusy(true)
     setChannelNotice('')
-    const payload = { nome: channelName.trim(), crianças: channelKids, stream_url: channelStreamUrl.trim() || null, categoria: channelCategory }
-    const legacyPayload = { nome: channelName.trim(), crianças: channelKids, stream_url: channelStreamUrl.trim() || null }
+    const kidsFlag = channelKids || channelCategory === 'Kids'
+    const payload = { nome: channelName.trim(), crianças: kidsFlag, stream_url: channelStreamUrl.trim() || null, categoria: channelCategory }
+    const legacyPayload = { nome: channelName.trim(), crianças: kidsFlag, stream_url: channelStreamUrl.trim() || null }
     let result = channelId
       ? await supabase.from('canais').update(payload).eq('id', channelId)
       : await supabase.from('canais').insert({ id: crypto.randomUUID(), ...payload })
