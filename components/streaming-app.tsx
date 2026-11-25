@@ -12,13 +12,14 @@ import { TitleCard, type TitleRecord } from './title-card'
 import { TvGuide } from './tv-guide'
 import { AdminPanel } from './admin-panel'
 import { PlayerDialog } from './player-dialog'
+import { importedBrazilChannels } from '@/lib/brazil-channel-catalog'
 
 const supabase = createClient()
 type Profile = { id: string; name: string; kids: boolean }
 type Account = { id: string; name: string; role: string; plan_id: string }
 type SavedRow = { title_id: number; added_at: string }
 type ProgressRow = { title_id: number; percent: number; updated_at: string }
-type Channel = { id: string; name: string; kids: boolean; stream_url: string | null }
+type Channel = { id: string; name: string; kids: boolean; stream_url: string | null; catalog_group?: string; access_label?: string }
 type Schedule = { channel_id: string; slot: number; program: string }
 
 const officialShortcutChannels: Channel[] = [
@@ -45,7 +46,11 @@ const officialShortcutChannels: Channel[] = [
   { id: 'official-apple-tv', name: 'Apple TV', kids: false, stream_url: 'https://tv.apple.com/br' },
   { id: 'official-pluto-tv', name: 'Pluto TV (canais gratuitos)', kids: false, stream_url: 'https://pluto.tv/br/watch/live-tv/' },
   { id: 'official-samsung-tv-plus', name: 'Samsung TV Plus', kids: false, stream_url: 'https://www.samsung.com/br/tvs/smart-tv/samsung-tv-plus/' },
-]
+].map((channel) => ({ ...channel, catalog_group: 'Plataformas oficiais', access_label: 'Abrir página oficial do serviço' }))
+
+function normalizeChannelName(value: string): string {
+  return value.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '')
+}
 type View = 'inicio' | 'lista' | 'ao-vivo' | 'admin'
 
 export type StreamResult = { status: string; video_url: string | null; credit: number | string | null }
@@ -485,11 +490,11 @@ export function StreamingApp() {
   if (!profile) return <ProfilePicker profiles={profiles} onCreated={() => refreshProfiles()} onSelect={(selected) => { window.localStorage.setItem(`ibstreaming-profile:${userId}`, selected.id); setProfile(selected); window.localStorage.setItem(`ibstreaming-view:${userId}:${selected.id}`, 'inicio'); setView('inicio') }} />
 
   const isAdmin = account?.role === 'admin'
+  const existingNames = new Set([...channels, ...officialShortcutChannels].map((channel) => normalizeChannelName(channel.name)))
   const catalogChannels = [
     ...channels,
-    ...officialShortcutChannels.filter((shortcut) =>
-      !channels.some((channel) => channel.name.trim().toLocaleLowerCase('pt-BR') === shortcut.name.toLocaleLowerCase('pt-BR'))
-    ),
+    ...officialShortcutChannels.filter((shortcut) => !channels.some((channel) => normalizeChannelName(channel.name) === normalizeChannelName(shortcut.name))),
+    ...importedBrazilChannels.filter((entry) => !existingNames.has(normalizeChannelName(entry.name))),
   ].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
   const visibleChannels = profile.kids ? catalogChannels.filter((channel) => channel.kids) : catalogChannels
   const renderCards = (items: TitleRecord[], showProgress = false) => items.length ? <div className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">{items.map((item) => <TitleCard key={item.id} title={item} progress={showProgress ? progressById.get(item.id) : undefined} saved={savedIds.includes(item.id)} onPlay={(selected) => playTitle(selected)} onToggleList={toggleSaved} />)}</div> : null
