@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import useSWR from 'swr'
 import { Plus, Save, ShieldCheck, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -71,13 +71,13 @@ export function StreamingServicesAdmin() {
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
 
-  async function addService(event: React.FormEvent<HTMLFormElement>) {
+  async function addService(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const clean = name.trim()
     if (!clean) return
     setBusy(true); setNotice('')
     const slug = clean.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-    const { error } = await supabase.from('streaming_services').insert({ name: clean, slug, sort_order: (services.at(-1)?.sort_order ?? 0) + 10 })
+    const { error } = await supabase.from('streaming_services').insert({ name: clean, slug, sort_order: (services.length ? services[services.length - 1].sort_order : 0) + 10 })
     setBusy(false)
     if (error) { setNotice('Não foi possível cadastrar. Verifique se o nome/identificador já existe.'); return }
     setName(''); setNotice('Serviço cadastrado.'); await refreshServices()
