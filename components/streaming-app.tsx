@@ -29,8 +29,8 @@ const officialShortcutChannels: Channel[] = [
   { id: 'official-tv-aparecida', name: 'TV Aparecida', kids: false, stream_url: 'https://www.a12.com/tv/tv-ao-vivo/' },
   { id: 'official-redetv', name: 'RedeTV! Ao Vivo', kids: false, stream_url: 'https://www.redetv.uol.com.br/aovivo' },
   { id: 'official-tv-brasil', name: 'TV Brasil', kids: false, stream_url: 'https://aovivo.ebc.com.br/embed-tvbrasil.html', category: 'Canais brasileiros' },
-  { id: 'official-canal-gov', name: 'Canal Gov', kids: false, stream_url: 'https://canalgov-stream.ebc.com.br/index.m3u8' },
-  { id: 'official-canal-educacao', name: 'Canal Educação', kids: false, stream_url: 'https://canaleducacao-stream.ebc.com.br/index.m3u8' },
+  { id: 'official-canal-gov', name: 'Canal Gov', kids: false, stream_url: 'https://aovivo.ebc.com.br/embed-canalgov.html?autoplay=1&v=2', category: 'Canais brasileiros' },
+  { id: 'official-canal-educacao', name: 'Canal Educação', kids: false, stream_url: 'https://aovivo.ebc.com.br/embed-canaleducacao.html', category: 'Canais brasileiros' },
   { id: 'official-canal-libras', name: 'Canal Libras', kids: false, stream_url: 'https://canallibras-stream.ebc.com.br/mux_video_ts/index-1.m3u8' },
   { id: 'official-tv-camara', name: 'TV Câmara', kids: false, stream_url: 'https://www.camara.leg.br/tv/aovivo/embed', category: 'Canais brasileiros' },
   { id: 'official-tv-cultura', name: 'TV Cultura', kids: false, stream_url: 'https://culturaplay.tvcultura.com.br/channels/14/embed', category: 'Canais brasileiros' },
@@ -60,6 +60,8 @@ function getOfficialPlaybackUrl(channelName: string): string | null {
   const normalized = normalizeChannelName(channelName)
   const officialEmbeds: Record<string, string> = {
     tvbrasil: 'https://aovivo.ebc.com.br/embed-tvbrasil.html',
+    canalgov: 'https://aovivo.ebc.com.br/embed-canalgov.html?autoplay=1&v=2',
+    canaleducacao: 'https://aovivo.ebc.com.br/embed-canaleducacao.html',
     tvcamara: 'https://www.camara.leg.br/tv/aovivo/embed',
     tvcultura: 'https://culturaplay.tvcultura.com.br/channels/14/embed',
   }
@@ -140,15 +142,15 @@ function isOfficialEmbedUrl(source: string | null): boolean {
     const isCameraEmbed =
       (url.hostname === 'www.camara.leg.br' && url.pathname.startsWith('/tv/aovivo/embed')) ||
       (url.hostname === 'www2.camara.leg.br' && url.pathname === '/camaranoticias/tv/embedAoVivo.html')
-    const isTvBrasilEmbed =
-      url.hostname === 'aovivo.ebc.com.br' && url.pathname === '/embed-tvbrasil.html'
+    const isEbcEmbed =
+      url.hostname === 'aovivo.ebc.com.br' && /^\/embed-(tvbrasil|canalgov|canaleducacao)\.html$/.test(url.pathname)
     const isTvSenadoEmbed =
       url.hostname === 'www.youtube.com' && url.pathname.startsWith('/embed/') && url.pathname.slice(7).length === 11 && /^[A-Za-z0-9_-]+$/.test(url.pathname.slice(7))
 
     const isTvCulturaEmbed =
       url.hostname === 'culturaplay.tvcultura.com.br' && url.pathname === '/channels/14/embed'
 
-    return isCameraEmbed || isTvBrasilEmbed || isTvSenadoEmbed || isTvCulturaEmbed
+    return isCameraEmbed || isEbcEmbed || isTvSenadoEmbed || isTvCulturaEmbed
   } catch {
     return false
   }
