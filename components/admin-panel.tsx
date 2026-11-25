@@ -41,7 +41,7 @@ export function AdminPanel() {
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const { data: channels = [], mutate: refreshChannels } = useSWR<Channel[]>('admin-channels', async () => {
-    const { data, error } = await supabase.from('channels').select('id,name,kids,stream_url').order('name')
+    const { data, error } = await supabase.from('canais').select('id,name:nome,kids:crianças,stream_url').order('nome')
     if (error) throw error
     return data ?? []
   })
@@ -97,10 +97,10 @@ export function AdminPanel() {
     event.preventDefault()
     setChannelBusy(true)
     setChannelNotice('')
-    const payload = { name: channelName.trim(), kids: channelKids, stream_url: channelStreamUrl.trim() || null }
+    const payload = { nome: channelName.trim(), crianças: channelKids, stream_url: channelStreamUrl.trim() || null }
     const result = channelId
-      ? await supabase.from('channels').update(payload).eq('id', channelId)
-      : await supabase.from('channels').insert({ id: crypto.randomUUID(), ...payload })
+      ? await supabase.from('canais').update(payload).eq('id', channelId)
+      : await supabase.from('canais').insert({ id: crypto.randomUUID(), ...payload })
     setChannelBusy(false)
     if (result.error) {
       setChannelNotice('Não foi possível salvar o canal. Confira as permissões administrativas.')
