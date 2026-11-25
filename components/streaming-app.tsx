@@ -13,6 +13,8 @@ import { TvGuide } from './tv-guide'
 import { AdminPanel } from './admin-panel'
 import { PlayerDialog } from './player-dialog'
 import { importedBrazilChannels } from '@/lib/brazil-channel-catalog'
+import { getVideoEmbedUrl } from '@/lib/media-source'
+import { useUniversalMediaSource } from '@/lib/use-universal-media-source'
 
 const supabase = createClient()
 type Profile = { id: string; name: string; kids: boolean }
@@ -131,72 +133,14 @@ function LiveChannelPlayer({ channel, onClose }: { channel: Channel; onClose: ()
 
   const isOfficialEmbed = isOfficialEmbedUrl(channel.stream_url)
 
-  useEffect(() => {
-    const video = videoRef.current
-    const source = channel.stream_url
-    if (!video || !source || isOfficialEmbed) return
-
-    let hls: HlsInstance | null = null
-    let cancelled = false
-    let script: HTMLScriptElement | null = null
-
-    const startPlayback = () => {
-      if (cancelled) return
-      const Hls = (window as WindowWithHls).Hls
-
-      if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = source
-        setPlayerMessage('Se a transmissão não iniciar, confira se o endereço está ativo e permite reprodução neste site.')
-        void video.play().catch(() => setPlayerMessage('Clique em reproduzir. Se não funcionar, confira o endereço e as permissões da transmissão.'))
-        return
-      }
-
-      if (Hls?.isSupported()) {
-        hls = new Hls({ enableWorker: true })
-        hls.loadSource(source)
-        hls.attachMedia(video)
-        hls.on(Hls.Events.ERROR, (_event, data) => {
-          if (data.fatal) setPlayerMessage('Falha ao carregar o canal. Verifique se a URL HLS está ativa e permite acesso pelo navegador (CORS).')
-        })
-        setPlayerMessage('Carregando transmissão HLS…')
-        return
-      }
-
-      setPlayerMessage('Este navegador não oferece suporte à reprodução HLS.')
-    }
-
-    const existingHlsScript = document.querySelector<HTMLScriptElement>('script[data-ib-hls="true"]')
-    if ((window as WindowWithHls).Hls) {
-      startPlayback()
-    } else if (existingHlsScript) {
-      existingHlsScript.addEventListener('load', startPlayback, { once: true })
-      existingHlsScript.addEventListener('error', () => setPlayerMessage('Não foi possível carregar o módulo de reprodução HLS.'), { once: true })
-    } else {
-      script = document.createElement('script')
-      script.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.6.15/dist/hls.min.js'
-      script.async = true
-      script.dataset.ibHls = 'true'
-      script.onload = startPlayback
-      script.onerror = () => setPlayerMessage('Não foi possível carregar o módulo de reprodução HLS.')
-      document.head.appendChild(script)
-    }
-
-    video.onerror = () => setPlayerMessage('O navegador não conseguiu abrir esta transmissão. Verifique a URL, o formato e o acesso do servidor.')
-    return () => {
-      cancelled = true
-      video.pause()
-      video.removeAttribute('src')
-      video.load()
-      video.onerror = null
-      hls?.destroy()
-    }
-  }, [channel.id, channel.stream_url, isOfficialEmbed])
+  const embedUrl = isOfficialEmbed ? channel.stream_url : getVideoEmbedUrl(channel.stream_url)
+  useUniversalMediaSource(videoRef, channel.stream_url, setPlayerMessage, Boolean(channel.stream_url) && !embedUrl)
 
   return (
     <div>
       {isOfficialEmbed ? (
         <iframe
-          src={channel.stream_url ?? undefined}
+          src={embedUrl ?? undefined}
           title={`Transmissão ao vivo - ${channel.name}`}
           allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
           allowFullScreen
