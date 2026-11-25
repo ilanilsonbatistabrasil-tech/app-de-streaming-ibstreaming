@@ -14,7 +14,7 @@ function ChannelLogo({ channel }: { channel: Channel }) {
       <img src={channel.logo_url} alt={`Logo ${channel.name}`} loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} className="h-full w-full object-contain" />
     </span>
   ) : (
-    <ChannelLogo channel={channel} />
+    <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#22282a] text-[#e6b85c]"><Tv size={18} /></span>
   )
 }
 
