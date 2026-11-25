@@ -482,13 +482,34 @@ const verifiedPublicStreams: Record<string, string> = {
   'TVE RS': 'https://streaming.procergs.com.br:8443/tve/stve/playlist.m3u8',
 }
 
+
+function normalizeName(value: string): string {
+  return value.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+function uniqueNames(values: string[]): string[] {
+  const seen = new Set<string>()
+  return values.filter((value) => {
+    const key = normalizeName(value)
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+function isKidsChannel(name: string): boolean {
+  return /kids|gloob|baby shark|babyfirst|avatar|beyblade|bob esponja|boruto|cocoric|morang|naruto|nickelodeon|nick jr|o reino infantil|oggy|padrinhos|pokemon|popeye|smurfs|super onze|teletubbies|turma da m[oô]nica|yu-gi-oh|desenhos/i.test(name)
+}
+
+const uniqueBrazilNames = uniqueNames(brazilNames)
+
 export const importedBrazilChannels: ImportedBrazilChannel[] = [
-  ...brazilNames.map((name, index) => {
+  ...uniqueBrazilNames.map((name, index) => {
     const stream_url = verifiedPublicStreams[name] ?? null
     return {
       id: 'iptv-br-' + (index + 1),
       name,
-      kids: false,
+      kids: isKidsChannel(name),
       stream_url,
       catalog_group: 'Canais brasileiros',
       access_label: stream_url ? 'Transmissão pública identificada' : 'Acesso oficial ainda não verificado',
@@ -497,7 +518,7 @@ export const importedBrazilChannels: ImportedBrazilChannel[] = [
   ...plutoNames.map((name, index) => ({
     id: 'iptv-pluto-br-' + (index + 1),
     name: 'Pluto TV — ' + name,
-    kids: false,
+    kids: isKidsChannel(name),
     stream_url: 'https://pluto.tv/br/watch/live-tv/',
     catalog_group: 'Pluto TV',
     access_label: 'Abrir catálogo oficial da Pluto TV',
