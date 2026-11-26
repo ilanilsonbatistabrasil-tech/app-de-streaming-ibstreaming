@@ -17,12 +17,12 @@ export function StreamingServicesCatalog({ catalog, savedIds, progressById, onPl
   onPlay: (title: TitleRecord) => void
   onToggleList: (title: TitleRecord) => void
 }) {
-  const { data: services = [] } = useSWR<Service[]>('streaming-services-active', async () => {
+  const { data: services = [], error: servicesError, isLoading: servicesLoading } = useSWR<Service[]>('streaming-services-active', async () => {
     const { data, error } = await supabase.from('streaming_services').select('id,name,slug,active,sort_order').eq('active', true).order('sort_order')
     if (error) throw error
     return data ?? []
   })
-  const { data: links = [] } = useSWR<Association[]>('streaming-title-service-links', async () => {
+  const { data: links = [], error: linksError, isLoading: linksLoading } = useSWR<Association[]>('streaming-title-service-links', async () => {
     const { data, error } = await supabase.from('title_streaming_services').select('title_id,service_id')
     if (error) throw error
     return data ?? []
@@ -30,7 +30,9 @@ export function StreamingServicesCatalog({ catalog, savedIds, progressById, onPl
   const [selected, setSelected] = useState<number | null>(null)
   const catalogIds = useMemo(() => new Set(catalog.map((title) => title.id)), [catalog])
   const visible = (serviceId: number) => links.filter((link) => link.service_id === serviceId && catalogIds.has(link.title_id)).map((link) => catalog.find((title) => title.id === link.title_id)).filter((title): title is TitleRecord => Boolean(title))
-  if (!services.length) return null
+  if (servicesLoading || linksLoading) return <section className="mb-10 rounded-xl border border-white/[.08] px-5 py-6 text-center text-xs text-white/45">Carregando plataformas e títulos…</section>
+  if (servicesError || linksError) return <section className="mb-10 rounded-xl border border-amber-400/20 bg-amber-400/[.04] px-5 py-6 text-center text-xs text-amber-100/80">Não foi possível carregar as plataformas. Verifique se a migração do Supabase foi executada e se as permissões de leitura estão configuradas.</section>
+  if (!services.length) return <section className="mb-10 rounded-xl border border-white/[.08] px-5 py-6 text-center"><p className="text-sm font-medium text-white/75">Plataformas de streaming</p><p className="mt-2 text-xs text-white/40">Nenhum serviço ativo cadastrado. Confira a configuração do catálogo no painel administrativo.</p></section>
   const shown = selected === null ? services : services.filter((service) => service.id === selected)
   return <section className="mb-10">
     <div className="mb-4 flex flex-wrap items-end justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[.18em] text-[#e6b85c]">Por plataforma</p><h2 className="mt-1.5 text-xl font-semibold tracking-tight text-white">Explore por serviço</h2></div><span className="text-xs text-white/40">{services.length} serviços</span></div>
