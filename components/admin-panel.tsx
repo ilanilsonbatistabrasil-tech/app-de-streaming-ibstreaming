@@ -9,6 +9,7 @@ import { StreamingServicesAdmin } from './streaming-services'
 
 type Plan = { id: string; name: string; tier: number }
 type Rights = { title_id: number; regions: string[]; starts_on: string; ends_on: string; min_plan: string }
+type TitleMedia = { title_id: number; video_url: string; credit: string | null }
 type Channel = { id: string; name: string; kids: boolean; stream_url: string | null }
 type ChannelSchedule = { channel_id: string; slot: number; program: string }
 const supabase = createClient()
@@ -41,6 +42,15 @@ export function AdminPanel() {
   const [minPlan, setMinPlan] = useState('free')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
+  const { data: mediaRows = [], mutate: refreshMedia } = useSWR<TitleMedia[]>('admin-title-media', async () => {
+    const { data, error } = await supabase.from('title_media').select('title_id,video_url,credit')
+    if (error) throw error
+    return data ?? []
+  })
+  const [videoUrl, setVideoUrl] = useState('')
+  const [videoCredit, setVideoCredit] = useState('')
+  const [mediaBusy, setMediaBusy] = useState(false)
+  const [mediaNotice, setMediaNotice] = useState('')
   const { data: channels = [], mutate: refreshChannels } = useSWR<Channel[]>('admin-channels', async () => {
     const { data, error } = await supabase.from('channels').select('id,name,kids,stream_url').order('name')
     if (error) throw error
@@ -84,6 +94,10 @@ export function AdminPanel() {
     setStartDate(next?.starts_on ?? new Date().toISOString().slice(0, 10))
     setEndDate(next?.ends_on ?? '2030-12-31')
     setMinPlan(next?.min_plan ?? 'free')
+    const media = mediaRows.find((entry) => entry.title_id === Number(id))
+    setVideoUrl(media?.video_url ?? '')
+    setVideoCredit(media?.credit ?? '')
+    setMediaNotice('')
   }
 
   function chooseChannel(id: string) {
@@ -162,6 +176,39 @@ export function AdminPanel() {
     await refreshChannelSchedule()
   }
 
+  async function saveMedia(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!selected) {
+      setMediaNotice('Selecione primeiro um título cadastrado no formulário acima.')
+      return
+    }
+    let parsed: URL
+    try {
+      parsed = new URL(videoUrl.trim())
+    } catch {
+      setMediaNotice('Informe uma URL válida iniciada por https://.')
+      return
+    }
+    if (parsed.protocol !== 'https:') {
+      setMediaNotice('Por segurança, a fonte de vídeo precisa usar HTTPS.')
+      return
+    }
+    setMediaBusy(true)
+    setMediaNotice('')
+    const { error } = await supabase.from('title_media').upsert({
+      title_id: Number(selected),
+      video_url: parsed.toString(),
+      credit: videoCredit.trim() || null,
+    }, { onConflict: 'title_id' })
+    setMediaBusy(false)
+    if (error) {
+      setMediaNotice('Não foi possível salvar a fonte. Verifique a política media_admin e se sua conta tem permissão.')
+      return
+    }
+    setMediaNotice('Fonte de vídeo salva para este título.')
+    await refreshMedia()
+  }
+
   async function saveTitle(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setNotice('')
@@ -227,6 +274,19 @@ export function AdminPanel() {
       <div className="rounded-2xl border border-white/[.08] bg-[#111416] p-5 sm:p-7"><h2 className="font-semibold text-white">Catálogo cadastrado</h2><p className="mt-1 text-xs text-white/45">{titles.length} {titles.length === 1 ? 'título' : 'títulos'}</p><div className="mt-5 flex max-h-[580px] flex-col gap-2 overflow-y-auto">{titles.map((item) => { const itemRights = rights.find((right) => right.title_id === item.id); return <button key={item.id} type="button" onClick={() => chooseTitle(String(item.id))} className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-3 text-left transition ${selected === String(item.id) ? 'border-[#e6b85c]/30 bg-[#e6b85c]/[.06]' : 'border-white/[.06] bg-[#0c0f10] hover:border-white/15'}`}><span className="min-w-0"><span className="block truncate text-sm font-medium text-white/85">{item.title}</span><span className="mt-1 block truncate text-[11px] text-white/40">{item.year} · {item.genre} · {item.type === 'serie' ? 'Série' : item.type === 'documentario' ? 'Documentário' : item.type === 'anime' ? 'Anime' : 'Filme'}</span></span><span className={`shrink-0 rounded-full px-2 py-1 text-[9px] ${itemRights ? 'bg-[#335b4a]/30 text-[#99d3ae]' : 'bg-[#71432d]/30 text-[#e7b18b]'}`}>{itemRights ? 'Com direitos' : 'Sem direitos'}</span></button> })}{!titles.length && <p className="py-12 text-center text-xs text-white/40">Ainda não há títulos.</p>}</div>
       </div>
     </div>
+
+    <section className="mt-8 rounded-2xl border border-white/[.08] bg-[#111416] p-5 sm:p-7">
+      <div className="mb-5 flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-[#e6b85c]/10 text-[#e6b85c]"><Tv size={19} /></span><div><h2 className="font-semibold text-white">Fonte de vídeo do título</h2><p className="mt-1 text-xs text-white/45">Cadastre um arquivo MP4, uma transmissão HLS (.m3u8) ou um link oficial permitido.</p></div></div>
+      <form onSubmit={saveMedia} className="grid gap-4 md:grid-cols-2">
+        <label className="flex flex-col gap-2 text-xs text-white/60 md:col-span-2">Título selecionado<select className="field-dark" required value={selected} onChange={(event) => chooseTitle(event.target.value)}><option value="">Selecione um título cadastrado</option>{titles.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>
+        <label className="flex flex-col gap-2 text-xs text-white/60 md:col-span-2">URL da fonte autorizada<input className="field-dark" type="url" required value={videoUrl} onChange={(event) => setVideoUrl(event.target.value)} placeholder="https://servidor.com/video.mp4 ou https://...m3u8" /></label>
+        <label className="flex flex-col gap-2 text-xs text-white/60 md:col-span-2">Crédito / origem (opcional)<input className="field-dark" value={videoCredit} onChange={(event) => setVideoCredit(event.target.value)} placeholder="Ex.: arquivo próprio, trailer oficial, distribuidora" /></label>
+        <p className="text-[11px] leading-5 text-white/35 md:col-span-2">Use apenas vídeos próprios, licenciados ou links oficiais de trailers/serviços. Links protegidos de Netflix, Prime Video, Disney+ e similares abrem no serviço oficial; não são reproduzidos por este player.</p>
+        {mediaNotice && <p role="status" className="text-xs text-[#e7c981] md:col-span-2">{mediaNotice}</p>}
+        <button disabled={mediaBusy || !selected} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#e6b85c] px-5 text-sm font-semibold text-[#16130b] disabled:opacity-55 md:col-span-2">{mediaBusy ? <LoaderCircle size={16} className="animate-spin" /> : <Save size={16} />}{mediaBusy ? 'Salvando…' : 'Salvar fonte de vídeo'}</button>
+      </form>
+      <p className="mt-3 text-[11px] text-white/35">{mediaRows.length} {mediaRows.length === 1 ? 'título com fonte cadastrada' : 'títulos com fontes cadastradas'}.</p>
+    </section>
 
     <section className="mt-8 grid gap-6 lg:grid-cols-2">
       <div className="rounded-2xl border border-white/[.08] bg-[#111416] p-5 sm:p-7">
