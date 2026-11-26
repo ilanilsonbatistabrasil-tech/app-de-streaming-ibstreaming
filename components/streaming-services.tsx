@@ -28,6 +28,7 @@ export function StreamingServicesCatalog({ catalog, savedIds, progressById, onPl
     return data ?? []
   })
   const [selected, setSelected] = useState<number | null>(null)
+  const [selectedType, setSelectedType] = useState<'todos' | 'filme' | 'serie'>('todos')
   const catalogIds = useMemo(() => new Set(catalog.map((title) => title.id)), [catalog])
   const visible = (serviceId: number) => links.filter((link) => link.service_id === serviceId && catalogIds.has(link.title_id)).map((link) => catalog.find((title) => title.id === link.title_id)).filter((title): title is TitleRecord => Boolean(title))
   if (servicesLoading || linksLoading) return <section className="mb-10 rounded-xl border border-white/[.08] px-5 py-6 text-center text-xs text-white/45">Carregando plataformas e títulos…</section>
@@ -40,14 +41,17 @@ export function StreamingServicesCatalog({ catalog, savedIds, progressById, onPl
       <button type="button" onClick={() => setSelected(null)} className={`shrink-0 rounded-full border px-3.5 py-2 text-xs ${selected === null ? 'border-[#e6b85c]/40 bg-[#e6b85c]/10 text-[#f0ce82]' : 'border-white/[.08] text-white/55'}`}>Todos</button>
       {services.map((service) => <button key={service.id} type="button" onClick={() => setSelected(service.id)} className={`shrink-0 rounded-full border px-3.5 py-2 text-xs ${selected === service.id ? 'border-[#e6b85c]/40 bg-[#e6b85c]/10 text-[#f0ce82]' : 'border-white/[.08] text-white/55'}`}>{service.name}</button>)}
     </div>
+    <div className="mb-6 flex gap-2" role="group" aria-label="Filtrar filmes ou séries">
+      {([['todos', 'Todos os tipos'], ['filme', 'Filmes'], ['serie', 'Séries']] as const).map(([value, label]) => <button key={value} type="button" onClick={() => setSelectedType(value)} aria-pressed={selectedType === value} className={`rounded-full border px-3.5 py-2 text-xs transition ${selectedType === value ? 'border-[#e6b85c]/40 bg-[#e6b85c]/10 text-[#f0ce82]' : 'border-white/[.08] text-white/55 hover:border-white/20 hover:text-white/85'}`}>{label}</button>)}
+    </div>
     <div className="space-y-8">
       {shown.map((service) => {
-        const titles = visible(service.id)
+        const titles = visible(service.id).filter((title) => selectedType === 'todos' || title.type === selectedType)
         if (!titles.length) return null
-        return <div key={service.id}><div className="mb-4 flex items-center justify-between"><h3 className="text-base font-semibold text-white">{service.name}</h3><span className="text-[11px] text-white/35">{titles.length} títulos</span></div><div className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">{titles.map((title) => <TitleCard key={title.id} title={title} progress={progressById.get(title.id)} saved={savedIds.includes(title.id)} onPlay={onPlay} onToggleList={onToggleList} />)}</div></div>
+        return <div key={service.id}><div className="mb-4 flex items-center justify-between"><h3 className="text-base font-semibold text-white">{service.name}</h3><span className="text-[11px] text-white/35">{titles.length} {selectedType === 'filme' ? 'filmes' : selectedType === 'serie' ? 'séries' : 'títulos'}</span></div><div className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">{titles.map((title) => <TitleCard key={title.id} title={title} progress={progressById.get(title.id)} saved={savedIds.includes(title.id)} onPlay={onPlay} onToggleList={onToggleList} />)}</div></div>
       })}
     </div>
-    {shown.every((service) => visible(service.id).length === 0) && <p className="rounded-xl border border-dashed border-white/10 px-5 py-8 text-center text-xs text-white/40">Ainda não há títulos vinculados a este serviço para o seu perfil e região.</p>}
+    {shown.every((service) => visible(service.id).filter((title) => selectedType === 'todos' || title.type === selectedType).length === 0) && <p className="rounded-xl border border-dashed border-white/10 px-5 py-8 text-center text-xs text-white/40">Ainda não há títulos deste tipo vinculados a este serviço para o seu perfil e região.</p>}
   </section>
 }
 
