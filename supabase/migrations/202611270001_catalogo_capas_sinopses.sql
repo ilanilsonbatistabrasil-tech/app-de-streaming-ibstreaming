@@ -11,6 +11,8 @@ create table if not exists public.title_catalog_metadata (
 
 alter table public.title_catalog_metadata enable row level security;
 
+grant select, insert, update, delete on public.title_catalog_metadata to authenticated;
+
 drop policy if exists "Authenticated users can read title catalog metadata" on public.title_catalog_metadata;
 create policy "Authenticated users can read title catalog metadata"
   on public.title_catalog_metadata for select to authenticated using (true);
@@ -70,7 +72,7 @@ where not exists (
 
 -- Mantém os títulos visíveis para a região BR, sem representar licença de reprodução.
 insert into public.title_rights (title_id,regions,starts_on,ends_on,min_plan)
-select t.id,array['BR']::text[],current_date,date '2099-12-31','free'
+select t.id,array['BR']::text[],case when s.title = 'Bob Esponja — 18ª temporada' then date '2026-11-27' else current_date end,date '2099-12-31','free'
 from ib_catalog_enrichment s
 join public.titles t on lower(t.title)=lower(s.title) and t.year=s.year
 where not exists (select 1 from public.title_rights r where r.title_id=t.id);
