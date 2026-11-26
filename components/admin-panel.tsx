@@ -5,6 +5,7 @@ import useSWR from 'swr'
 import { BadgeCheck, CalendarClock, Clapperboard, LoaderCircle, Radio, Save, ShieldCheck, Tv, Pencil, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { TitleRecord } from './title-card'
+import { StreamingServicesAdmin } from './streaming-services'
 
 type Plan = { id: string; name: string; tier: number }
 type Rights = { title_id: number; regions: string[]; starts_on: string; ends_on: string; min_plan: string }
@@ -255,5 +256,6 @@ export function AdminPanel() {
         <div className="mt-6 flex max-h-[420px] flex-col gap-2 overflow-y-auto">{channelSchedule.map((item) => <div key={item.channel_id + '-' + item.slot} className="flex items-center gap-2 rounded-xl border border-white/[.06] bg-[#0c0f10] px-3 py-3"><span className="w-12 shrink-0 text-xs text-[#e6b85c]">{String(item.slot).padStart(2, '0')}:00</span><span className="min-w-0 flex-1"><span className="block truncate text-xs text-white/85">{item.program}</span><span className="block truncate text-[10px] text-white/35">{channels.find((channel) => channel.id === item.channel_id)?.name ?? 'Canal'}</span></span><button type="button" title="Editar horário" onClick={() => chooseSchedule(item.channel_id, item.slot, item.program)} className="grid size-8 place-items-center rounded-lg text-white/50 hover:bg-white/[.07] hover:text-white"><Pencil size={14} /></button><button type="button" title="Excluir horário" onClick={() => removeSchedule(item.channel_id, item.slot)} className="grid size-8 place-items-center rounded-lg text-white/50 hover:bg-red-500/10 hover:text-red-300"><Trash2 size={14} /></button></div>)}{!channelSchedule.length && <p className="text-xs text-white/35">Nenhum horário cadastrado.</p>}</div>
       </div>
     </section>
+    <StreamingServicesAdmin />
   </section>
 }
