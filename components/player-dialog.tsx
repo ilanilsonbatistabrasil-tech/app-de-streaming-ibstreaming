@@ -36,7 +36,7 @@ function getTrailerEmbedUrl(source: string | null): string | null {
     }
     if (host === 'vimeo.com' || host === 'www.vimeo.com') {
       const id = url.pathname.split('/').filter(Boolean)[0]
-      return id && /^\\d+$/.test(id) ? `https://player.vimeo.com/video/${id}` : null
+      return id && /^\d+$/.test(id) ? `https://player.vimeo.com/video/${id}` : null
     }
     return null
   } catch { return null }
@@ -88,7 +88,7 @@ export function PlayerDialog({ title, stream, loading, message, onClose, onVerif
   const requiresPin = stream?.status === 'pin'
   const officialUrl = getOfficialServiceUrl(stream?.video_url ?? null)
   const trailerUrl = getTrailerEmbedUrl(stream?.video_url ?? null)
-  const isHls = Boolean(stream?.video_url && /\\.m3u8(?:$|[?#])/i.test(stream.video_url))
+  const isHls = Boolean(stream?.video_url && /\.m3u8(?:$|[?#])/i.test(stream.video_url))
 
   useEffect(() => {
     const video = videoRef.current
