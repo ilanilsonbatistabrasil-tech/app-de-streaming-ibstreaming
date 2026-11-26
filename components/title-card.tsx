@@ -1,6 +1,11 @@
 'use client'
 
-import { Bookmark, Check, CirclePlay, LockKeyhole } from 'lucide-react'
+import useSWR from 'swr'
+import { Bookmark, Check, CirclePlay } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+
+const supabase = createClient()
+type TitleMetadata = { title_id: number; synopsis: string | null; poster_url: string | null }
 
 export type TitleRecord = {
   id: number
@@ -9,6 +14,8 @@ export type TitleRecord = {
   genre: string
   age: number
   year: number
+  synopsis?: string | null
+  poster_url?: string | null
 }
 
 export function TitleCard({
@@ -24,12 +31,21 @@ export function TitleCard({
   onPlay: (title: TitleRecord) => void
   onToggleList: (title: TitleRecord) => void
 }) {
+  const { data: metadata = [] } = useSWR<TitleMetadata[]>('title-catalog-metadata', async () => {
+    const { data, error } = await supabase.from('title_catalog_metadata').select('title_id,synopsis,poster_url')
+    if (error) throw error
+    return data ?? []
+  })
+  const details = metadata.find((item) => item.title_id === title.id)
+  const posterUrl = details?.poster_url ?? title.poster_url
+  const synopsis = details?.synopsis ?? title.synopsis
   const style = `poster-surface poster-fallback-${Math.abs(title.id) % 5}`
   const typeLabel = title.type === 'serie' ? 'Série' : title.type === 'documentario' ? 'Documentário' : title.type === 'anime' ? 'Anime' : 'Filme'
 
   return (
     <article className="group min-w-0">
       <div className={`relative aspect-[.72] overflow-hidden rounded-xl border border-white/[.08] transition duration-300 group-hover:-translate-y-1 group-hover:border-white/20 ${style}`}>
+        {posterUrl && <img src={posterUrl} alt={`Pôster de ${title.title}`} loading="lazy" className="absolute inset-0 size-full object-cover" />}
         <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/10 to-black/10 opacity-80 transition group-hover:opacity-100" />
         <div className="absolute left-3 top-3 rounded-full border border-white/15 bg-black/35 px-2 py-1 text-[10px] font-medium capitalize text-white/85 backdrop-blur">{typeLabel}</div>
         <button type="button" onClick={() => onToggleList(title)} aria-label={saved ? `Remover ${title.title} da minha lista` : `Adicionar ${title.title} à minha lista`} className="absolute right-2.5 top-2.5 grid size-8 place-items-center rounded-full border border-white/15 bg-black/35 text-white backdrop-blur transition hover:bg-[#e6b85c] hover:text-black">{saved ? <Check size={15} /> : <Bookmark size={15} />}</button>
@@ -40,6 +56,7 @@ export function TitleCard({
       </div>
       <button type="button" onClick={() => onPlay(title)} className="mt-3 block w-full truncate text-left text-sm font-semibold text-white/90 hover:text-[#e6b85c]">{title.title}</button>
       <p className="mt-1 truncate text-xs text-white/45">{title.year} <span className="mx-1 text-white/20">·</span> {title.genre} <span className="mx-1 text-white/20">·</span> {title.age === 0 ? 'Livre' : `${title.age}+`}</p>
+      {synopsis && <p className="mt-2 line-clamp-2 text-[11px] leading-4 text-white/40">{synopsis}</p>}
     </article>
   )
 }
