@@ -214,6 +214,13 @@ export function StreamingApp() {
     if (error) throw error
     return (data ?? []) as TitleRecord[]
   }, { keepPreviousData: true })
+  // Catálogo completo e independente para a seção Por plataforma.
+  // Os filtros de tipo e busca de Explore o catálogo não devem alterar esta lista.
+  const { data: platformCatalog = [] } = useSWR<TitleRecord[]>(profile ? ['platform-catalog', profile.id] : null, async () => {
+    const { data, error } = await supabase.rpc('get_catalog', { p_profile: profile!.id, p_region: 'BR', p_q: null, p_type: null })
+    if (error) throw error
+    return (data ?? []) as TitleRecord[]
+  }, { keepPreviousData: true })
   const { data: savedRows = [], mutate: refreshSaved } = useSWR<SavedRow[]>(profile ? ['saved', profile.id] : null, async () => {
     const { data, error } = await supabase.from('my_list').select('title_id,added_at').eq('profile_id', profile!.id).order('added_at', { ascending: false })
     if (error) throw error
@@ -479,7 +486,7 @@ export function StreamingApp() {
           <div className="max-w-xl"><p className="mb-4 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.22em] text-[#e6b85c]"><Sparkles size={14} />IBStreaming apresenta</p><h1 className="max-w-[540px] text-4xl font-semibold leading-[1.04] tracking-[-.04em] text-white sm:text-5xl lg:text-[62px]">Uma boa história muda tudo.</h1><p className="mt-4 max-w-md text-sm leading-6 text-white/65 sm:text-base">Descubra filmes, séries, animes e documentários feitos para o seu próximo momento inesquecível.</p><div className="mt-7 flex flex-wrap gap-3"><button type="button" onClick={() => document.getElementById('catalogo')?.scrollIntoView({ behavior: 'smooth' })} className="inline-flex h-11 items-center gap-2 rounded-lg bg-[#e6b85c] px-5 text-sm font-semibold text-[#16130b] transition hover:bg-[#f0ca76]"><Play size={16} fill="currentColor" />Explorar catálogo</button><button type="button" onClick={() => changeView('ao-vivo')} className="inline-flex h-11 items-center gap-2 rounded-lg border border-white/20 bg-black/20 px-4 text-sm font-medium text-white/90 backdrop-blur transition hover:bg-white/10"><Radio size={15} />TV ao vivo</button></div></div>
         </div>
       </section>}
-      <div className="mx-auto max-w-[1600px] px-5 pt-7 sm:px-8 lg:px-12"><StreamingServicesCatalog catalog={catalog} savedIds={savedIds} progressById={progressById} onPlay={playTitle} onToggleList={toggleSaved} /></div>
+      <div className="mx-auto max-w-[1600px] px-5 pt-7 sm:px-8 lg:px-12"><StreamingServicesCatalog catalog={platformCatalog} savedIds={savedIds} progressById={progressById} onPlay={playTitle} onToggleList={toggleSaved} /></div>
       <section id="catalogo" className="mx-auto max-w-[1600px] px-5 pb-16 pt-7 sm:px-8 lg:px-12">
         {!query && !type && continueTitles.length > 0 && <div className="mb-10"><SectionHeading eyebrow="Continue de onde parou" title="Retomar reprodução" />{renderCards(continueTitles, true)}</div>}
         {!query && !type && <SectionHeading eyebrow="Feito para você" title="Explore o catálogo" trailing={<span className="text-xs text-white/40">{catalog.length} títulos</span>} />}
