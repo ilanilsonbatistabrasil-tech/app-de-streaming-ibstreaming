@@ -138,6 +138,7 @@ export function PlayerDialog({
   const [textTracks, setTextTracks] = useState<ShakaTrack[]>([])
 
   const videoRef = useRef<HTMLVideoElement>(null)
+  const playerRef = useRef<ShakaPlayerInstance | null>(null)
   const lastSavedAt = useRef(0)
   const restoredTimeRef = useRef(false)
 
@@ -260,6 +261,7 @@ export function PlayerDialog({
           }
 
           player = new shaka.Player(video)
+          playerRef.current = player
 
           player.addEventListener('error', handlePlayerError)
           player.addEventListener('trackschanged', refreshTracks)
@@ -317,6 +319,7 @@ export function PlayerDialog({
       video.load()
 
       if (player) {
+        if (playerRef.current === player) playerRef.current = null
         player.removeEventListener('error', handlePlayerError)
         player.removeEventListener('trackschanged', refreshTracks)
         player.removeEventListener('variantchanged', refreshTracks)
@@ -333,47 +336,34 @@ export function PlayerDialog({
   ])
 
   function changeAudioTrack(id: string) {
-    const videoPlayer = videoRef.current
-    if (!videoPlayer) return
-
-    // O Shaka mantém as faixas no player associado ao vídeo.
+    const currentPlayer = playerRef.current
     const selected = audioTracks.find((track) => String(track.id) === id)
+    if (!currentPlayer || !selected) return
 
-    if (!selected) return
-
-    // A seleção é realizada pelo player Shaka.
-    void import('shaka-player').then((module) => {
-      const shaka = module as unknown as {
-        Player?: { get?: (video: HTMLVideoElement) => ShakaPlayerInstance | null }
-      }
-
-      const currentPlayer = shaka.Player?.get?.(videoPlayer)
-
-      if (currentPlayer) currentPlayer.selectAudioTrack(selected)
-    }).catch((error) => {
+    try {
+      currentPlayer.selectAudioTrack(selected)
+      setAudioTracks(currentPlayer.getAudioTracks())
+    } catch (error) {
       console.error('[IBStreaming] Falha ao selecionar áudio:', error)
-    })
+      setPlaybackError('Não foi possível alterar a faixa de áudio.')
+    }
   }
 
   function changeTextTrack(id: string) {
-    const videoPlayer = videoRef.current
-    if (!videoPlayer) return
+    const currentPlayer = playerRef.current
+    if (!currentPlayer) return
 
     const selected = id === ''
       ? null
       : textTracks.find((track) => String(track.id) === id) ?? null
 
-    void import('shaka-player').then((module) => {
-      const shaka = module as unknown as {
-        Player?: { get?: (video: HTMLVideoElement) => ShakaPlayerInstance | null }
-      }
-
-      const currentPlayer = shaka.Player?.get?.(videoPlayer)
-
-      if (currentPlayer) currentPlayer.selectTextTrack(selected)
-    }).catch((error) => {
+    try {
+      currentPlayer.selectTextTrack(selected)
+      setTextTracks(currentPlayer.getTextTracks())
+    } catch (error) {
       console.error('[IBStreaming] Falha ao selecionar legenda:', error)
-    })
+      setPlaybackError('Não foi possível alterar a legenda.')
+    }
   }
 
   const activeAudio = audioTracks.find((track) => track.active)
