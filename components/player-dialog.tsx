@@ -322,7 +322,20 @@ export function PlayerDialog({
         if (playerRef.current === player) playerRef.current = null
         player.removeEventListener('error', handlePlayerError)
         player.removeEventListener('trackschanged', refreshTracks)
-        player.removeEventListener('variantchanged', refresh  function changeAudioTrack(id: string) {
+        player.removeEventListener('variantchanged', refreshTracks)
+        void player.destroy()
+      }
+    }
+  }, [
+    playable,
+    source,
+    isAdaptiveManifest,
+    officialUrl,
+    trailerUrl,
+    initialTime,
+  ])
+
+  function changeAudioTrack(id: string) {
     const currentPlayer = playerRef.current
     const selected = audioTracks.find((track) => String(track.id) === id)
     if (!currentPlayer || !selected) return
@@ -351,10 +364,6 @@ export function PlayerDialog({
       console.error('[IBStreaming] Falha ao selecionar legenda:', error)
       setPlaybackError('Não foi possível alterar a legenda.')
     }
-  }(currentPlayer) currentPlayer.selectTextTrack(selected)
-    }).catch((error) => {
-      console.error('[IBStreaming] Falha ao selecionar legenda:', error)
-    })
   }
 
   const activeAudio = audioTracks.find((track) => track.active)
