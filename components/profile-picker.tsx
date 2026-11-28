@@ -17,21 +17,47 @@ export function ProfilePicker({ profiles, onSelect, onCreated }: { profiles: Pro
   async function createProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError('')
-    setBusy(true)
-    const supabase = createClient()
-    const { data, error: insertError } = await supabase.from('profiles').insert({ name: name.trim(), kids }).select('id,name,kids').single()
-    if (insertError || !data) {
-      setError('Não foi possível criar o perfil. Verifique o acesso da conta e tente novamente.')
-      setBusy(false)
+
+    const cleanName = name.trim()
+    if (!cleanName) {
+      setError('Informe um nome para o perfil.')
       return
     }
-    if (pin) {
-      const { error: pinError } = await supabase.rpc('set_profile_pin', { p_profile: data.id, p_pin: pin })
-      if (pinError) setError('O perfil foi criado, mas o PIN não pôde ser salvo. Você pode configurá-lo depois.')
+
+    setBusy(true)
+
+    try {
+      const supabase = createClient()
+      const { data, error: insertError } = await supabase
+        .from('profiles')
+        .insert({ name: cleanName, kids })
+        .select('id,name,kids')
+        .single()
+
+      if (insertError || !data) {
+        setError('Não foi possível criar o perfil. Verifique o acesso da conta e tente novamente.')
+        return
+      }
+
+      if (pin) {
+        const { error: pinError } = await supabase.rpc('set_profile_pin', {
+          p_profile: data.id,
+          p_pin: pin,
+        })
+        if (pinError) {
+          console.error('[IBStreaming profiles] Falha ao salvar PIN:', pinError)
+          setError('O perfil foi criado, mas o PIN não pôde ser salvo. Configure-o novamente antes de usar a proteção parental.')
+        }
+      }
+
+      onCreated()
+      onSelect(data)
+    } catch (error) {
+      console.error('[IBStreaming profiles] Falha inesperada ao criar perfil:', error)
+      setError('Não foi possível concluir a criação do perfil. Confira sua conexão e tente novamente.')
+    } finally {
+      setBusy(false)
     }
-    setBusy(false)
-    onCreated()
-    onSelect(data)
   }
 
   return (
