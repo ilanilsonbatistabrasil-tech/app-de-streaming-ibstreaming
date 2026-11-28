@@ -212,6 +212,9 @@ export function PlayerDialog({
       return
     }
 
+    // Captura uma referência não nula para uso dentro das funções assíncronas.
+    const activeVideo = video
+
     let cancelled = false
 
     setPlaybackError('')
@@ -220,7 +223,7 @@ export function PlayerDialog({
     restoredTimeRef.current = false
     lastSavedAt.current = 0
 
-    const refreshTracks: EventListener = () => {
+    const refreshTracks = () => {
       const currentPlayer = playerRef.current
       if (!currentPlayer) return
 
@@ -260,7 +263,7 @@ export function PlayerDialog({
             throw new Error('Navegador incompatível com Shaka Player.')
           }
 
-          const currentPlayer = new shaka.Player(video)
+          const currentPlayer = new shaka.Player(activeVideo)
           playerRef.current = currentPlayer
 
           currentPlayer.addEventListener('error', handlePlayerError)
@@ -286,8 +289,8 @@ export function PlayerDialog({
           setPlaybackError('')
         } else {
           // MP4 e outras fontes progressivas compatíveis com o navegador.
-          video.src = source
-          video.load()
+          activeVideo.src = source
+          activeVideo.load()
         }
       } catch (error) {
         console.error('[IBStreaming Shaka] Falha ao iniciar:', error)
@@ -300,7 +303,7 @@ export function PlayerDialog({
       }
     }
 
-    video.onerror = () => {
+    activeVideo.onerror = () => {
       if (!cancelled) {
         setPlaybackError(
           'O navegador não conseguiu abrir esta fonte. Confira o endereço, o formato e as permissões CORS.',
@@ -313,10 +316,10 @@ export function PlayerDialog({
     return () => {
       cancelled = true
 
-      video.pause()
-      video.onerror = null
-      video.removeAttribute('src')
-      video.load()
+      activeVideo.pause()
+      activeVideo.onerror = null
+      activeVideo.removeAttribute('src')
+      activeVideo.load()
 
       const currentPlayer = playerRef.current
       playerRef.current = null
