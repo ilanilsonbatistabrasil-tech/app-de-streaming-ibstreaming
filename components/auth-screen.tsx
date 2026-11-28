@@ -24,37 +24,46 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void })
     setMessage('')
     setBusy(true)
 
-    if (mode === 'signup') {
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-        options: {
-          emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/auth/callback`,
-          data: { name: name.trim() },
-        },
-      })
-      setBusy(false)
+    try {
+      if (mode === 'signup') {
+        const { data, error } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: {
+            emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/auth/callback`,
+            data: { name: name.trim() },
+          },
+        })
+
+        if (error) {
+          const lower = error.message.toLowerCase()
+          setMessage(lower.includes('password') ? 'Escolha uma senha mais forte, com pelo menos 8 caracteres.' : 'Não foi possível concluir o cadastro. Confira os dados e tente novamente.')
+          return
+        }
+
+        if (!data.session) {
+          setMessage('Cadastro recebido. Confira seu e-mail para confirmar a conta e entrar.')
+          return
+        }
+
+        onAuthenticated()
+        return
+      }
+
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
       if (error) {
         const lower = error.message.toLowerCase()
-        setMessage(lower.includes('password') ? 'Escolha uma senha mais forte, com pelo menos 8 caracteres.' : 'Não foi possível concluir o cadastro. Confira os dados e tente novamente.')
+        setMessage(lower.includes('confirm') ? 'Confirme seu e-mail pelo link enviado antes de entrar.' : 'E-mail ou senha inválidos. Confira seus dados e tente novamente.')
         return
       }
-      if (!data.session) {
-        setMessage('Cadastro recebido. Confira seu e-mail para confirmar a conta e entrar.')
-        return
-      }
-      onAuthenticated()
-      return
-    }
 
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
-    setBusy(false)
-    if (error) {
-      const lower = error.message.toLowerCase()
-      setMessage(lower.includes('confirm') ? 'Confirme seu e-mail pelo link enviado antes de entrar.' : 'E-mail ou senha inválidos. Confira seus dados e tente novamente.')
-      return
+      onAuthenticated()
+    } catch (error) {
+      console.error('[IBStreaming auth] Falha inesperada na autenticação:', error)
+      setMessage('Não foi possível conectar ao serviço de autenticação. Confira sua internet e tente novamente.')
+    } finally {
+      setBusy(false)
     }
-    onAuthenticated()
   }
 
   return (

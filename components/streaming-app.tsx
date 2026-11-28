@@ -216,7 +216,7 @@ export function StreamingApp() {
   }, { keepPreviousData: true })
   // Catálogo completo e independente para a seção Por plataforma.
   // Os filtros de tipo e busca de Explore o catálogo não devem alterar esta lista.
-  const { data: platformCatalog = [] } = useSWR<TitleRecord[]>(profile ? ['platform-catalog', profile.id] : null, async () => {
+  const { data: platformCatalog = [], isLoading: platformCatalogLoading } = useSWR<TitleRecord[]>(profile ? ['platform-catalog', profile.id] : null, async () => {
     const { data, error } = await supabase.rpc('get_catalog', { p_profile: profile!.id, p_region: 'BR', p_q: null, p_type: null })
     if (error) throw error
     return (data ?? []) as TitleRecord[]
@@ -243,7 +243,9 @@ export function StreamingApp() {
   })
   const savedIds = useMemo(() => savedRows.map((row) => row.title_id), [savedRows])
   const progressById = useMemo(() => new Map(progressRows.map((row) => [row.title_id, row.percent])), [progressRows])
-  const titleMap = useMemo(() => new Map(catalog.map((item) => [item.id, item])), [catalog])
+  // Use o catálogo completo para que a busca/filtro da tela Explorar não esconda
+  // títulos já salvos ou o progresso do usuário.
+  const titleMap = useMemo(() => new Map(platformCatalog.map((item) => [item.id, item])), [platformCatalog])
   const savedTitles = useMemo(() => savedIds.map((id) => titleMap.get(id)).filter((item): item is TitleRecord => Boolean(item) && (!profile?.kids || item!.age <= 10)), [savedIds, titleMap, profile?.kids])
   const continueTitles = useMemo(() => progressRows.filter((row) => row.percent > 0 && row.percent < 100).map((row) => titleMap.get(row.title_id)).filter((item): item is TitleRecord => Boolean(item) && (!profile?.kids || item!.age <= 10)), [progressRows, titleMap, profile?.kids])
 
@@ -289,7 +291,7 @@ export function StreamingApp() {
   }
 
   useEffect(() => {
-    const { data } = supabase.auth.onAuthStateChange((event) => {
+    const { data } = supabase.auth.onAuthStateChange((event: string) => {
       console.info('[IBStreaming login] Evento Supabase Auth:', event)
       window.setTimeout(() => refreshUser(), 0)
     })
@@ -374,11 +376,11 @@ export function StreamingApp() {
       const saved = JSON.parse(raw) as { titleId?: number; currentTime?: number; title?: TitleRecord }
       const savedTitle = saved.title && typeof saved.title.id === 'number' && typeof saved.title.title === 'string'
         ? saved.title
-        : catalog.find((item) => item.id === Number(saved.titleId))
+        : platformCatalog.find((item) => item.id === Number(saved.titleId))
 
       // Registros antigos guardavam apenas o ID. Aguarda o catálogo antes
       // de decidir que o título não existe; registros novos já incluem o título.
-      if (!savedTitle && catalogLoading) return
+      if (!savedTitle && platformCatalogLoading) return
       if (!savedTitle) {
         restoredPlaybackKeyRef.current = playbackStorageKey
         window.localStorage.removeItem(playbackStorageKey)
@@ -400,7 +402,7 @@ export function StreamingApp() {
       restoredPlaybackKeyRef.current = playbackStorageKey
       window.localStorage.removeItem(playbackStorageKey)
     }
-  }, [playbackStorageKey, profile, catalog, catalogLoading])
+  }, [playbackStorageKey, profile, platformCatalog, platformCatalogLoading])
 
   function savePlaybackTime(currentTime: number) {
     if (!playbackStorageKey || !playerTitle || !Number.isFinite(currentTime)) return

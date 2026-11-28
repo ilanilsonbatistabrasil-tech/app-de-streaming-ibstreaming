@@ -138,6 +138,7 @@ export function PlayerDialog({
   const [textTracks, setTextTracks] = useState<ShakaTrack[]>([])
 
   const videoRef = useRef<HTMLVideoElement>(null)
+  const playerRef = useRef<ShakaPlayerInstance | null>(null)
   const lastSavedAt = useRef(0)
   const restoredTimeRef = useRef(false)
 
@@ -211,8 +212,10 @@ export function PlayerDialog({
       return
     }
 
+    // Captura uma referência não nula para uso dentro das funções assíncronas.
+    const activeVideo = video
+
     let cancelled = false
-    let player: ShakaPlayerInstance | null = null
 
     setPlaybackError('')
     setAudioTracks([])
@@ -220,11 +223,12 @@ export function PlayerDialog({
     restoredTimeRef.current = false
     lastSavedAt.current = 0
 
-    const refreshTracks: EventListener = () => {
-      if (!player) return
+    const refreshTracks = () => {
+      const currentPlayer = playerRef.current
+      if (!currentPlayer) return
 
-      setAudioTracks(player.getAudioTracks())
-      setTextTracks(player.getTextTracks())
+      setAudioTracks(currentPlayer.getAudioTracks())
+      setTextTracks(currentPlayer.getTextTracks())
     }
 
     const handlePlayerError: EventListener = (event) => {
@@ -259,21 +263,22 @@ export function PlayerDialog({
             throw new Error('Navegador incompatível com Shaka Player.')
           }
 
-          player = new shaka.Player(video)
+          const currentPlayer = new shaka.Player(activeVideo)
+          playerRef.current = currentPlayer
 
-          player.addEventListener('error', handlePlayerError)
-          player.addEventListener('trackschanged', refreshTracks)
-          player.addEventListener('variantchanged', refreshTracks)
+          currentPlayer.addEventListener('error', handlePlayerError)
+          currentPlayer.addEventListener('trackschanged', refreshTracks)
+          currentPlayer.addEventListener('variantchanged', refreshTracks)
 
           // Mantém a adaptação automática de qualidade.
-          player.configure({
+          currentPlayer.configure({
             streaming: {
               bufferingGoal: 30,
               rebufferingGoal: 2,
             },
           })
 
-          await player.load(
+          await currentPlayer.load(
             source,
             initialTime > 0 ? initialTime : undefined,
           )
@@ -284,8 +289,8 @@ export function PlayerDialog({
           setPlaybackError('')
         } else {
           // MP4 e outras fontes progressivas compatíveis com o navegador.
-          video.src = source
-          video.load()
+          activeVideo.src = source
+          activeVideo.load()
         }
       } catch (error) {
         console.error('[IBStreaming Shaka] Falha ao iniciar:', error)
@@ -298,7 +303,7 @@ export function PlayerDialog({
       }
     }
 
-    video.onerror = () => {
+    activeVideo.onerror = () => {
       if (!cancelled) {
         setPlaybackError(
           'O navegador não conseguiu abrir esta fonte. Confira o endereço, o formato e as permissões CORS.',
@@ -311,16 +316,19 @@ export function PlayerDialog({
     return () => {
       cancelled = true
 
-      video.pause()
-      video.onerror = null
-      video.removeAttribute('src')
-      video.load()
+      activeVideo.pause()
+      activeVideo.onerror = null
+      activeVideo.removeAttribute('src')
+      activeVideo.load()
 
-      if (player) {
-        player.removeEventListener('error', handlePlayerError)
-        player.removeEventListener('trackschanged', refreshTracks)
-        player.removeEventListener('variantchanged', refreshTracks)
-        void player.destroy()
+      const currentPlayer = playerRef.current
+      playerRef.current = null
+
+      if (currentPlayer) {
+        currentPlayer.removeEventListener('error', handlePlayerError)
+        currentPlayer.removeEventListener('trackschanged', refreshTracks)
+        currentPlayer.removeEventListener('variantchanged', refreshTracks)
+        void currentPlayer.destroy()
       }
     }
   }, [
@@ -333,47 +341,35 @@ export function PlayerDialog({
   ])
 
   function changeAudioTrack(id: string) {
-    const videoPlayer = videoRef.current
-    if (!videoPlayer) return
-
-    // O Shaka mantém as faixas no player associado ao vídeo.
+    const currentPlayer = playerRef.current
     const selected = audioTracks.find((track) => String(track.id) === id)
 
-    if (!selected) return
+    if (!currentPlayer || !selected) return
 
-    // A seleção é realizada pelo player Shaka.
-    void import('shaka-player').then((module) => {
-      const shaka = module as unknown as {
-        Player?: { get?: (video: HTMLVideoElement) => ShakaPlayerInstance | null }
-      }
-
-      const currentPlayer = shaka.Player?.get?.(videoPlayer)
-
-      if (currentPlayer) currentPlayer.selectAudioTrack(selected)
-    }).catch((error) => {
+    try {
+      currentPlayer.selectAudioTrack(selected)
+      setAudioTracks(currentPlayer.getAudioTracks())
+    } catch (error) {
       console.error('[IBStreaming] Falha ao selecionar áudio:', error)
-    })
+      setPlaybackError('Não foi possível alterar a faixa de áudio.')
+    }
   }
 
   function changeTextTrack(id: string) {
-    const videoPlayer = videoRef.current
-    if (!videoPlayer) return
+    const currentPlayer = playerRef.current
+    if (!currentPlayer) return
 
     const selected = id === ''
       ? null
       : textTracks.find((track) => String(track.id) === id) ?? null
 
-    void import('shaka-player').then((module) => {
-      const shaka = module as unknown as {
-        Player?: { get?: (video: HTMLVideoElement) => ShakaPlayerInstance | null }
-      }
-
-      const currentPlayer = shaka.Player?.get?.(videoPlayer)
-
-      if (currentPlayer) currentPlayer.selectTextTrack(selected)
-    }).catch((error) => {
+    try {
+      currentPlayer.selectTextTrack(selected)
+      setTextTracks(currentPlayer.getTextTracks())
+    } catch (error) {
       console.error('[IBStreaming] Falha ao selecionar legenda:', error)
-    })
+      setPlaybackError('Não foi possível alterar as legendas.')
+    }
   }
 
   const activeAudio = audioTracks.find((track) => track.active)
