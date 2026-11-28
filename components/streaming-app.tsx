@@ -243,7 +243,9 @@ export function StreamingApp() {
   })
   const savedIds = useMemo(() => savedRows.map((row) => row.title_id), [savedRows])
   const progressById = useMemo(() => new Map(progressRows.map((row) => [row.title_id, row.percent])), [progressRows])
-  const titleMap = useMemo(() => new Map(catalog.map((item) => [item.id, item])), [catalog])
+  // Use o catálogo completo para que a busca/filtro da tela Explorar não esconda
+  // títulos já salvos ou o progresso do usuário.
+  const titleMap = useMemo(() => new Map(platformCatalog.map((item) => [item.id, item])), [platformCatalog])
   const savedTitles = useMemo(() => savedIds.map((id) => titleMap.get(id)).filter((item): item is TitleRecord => Boolean(item) && (!profile?.kids || item!.age <= 10)), [savedIds, titleMap, profile?.kids])
   const continueTitles = useMemo(() => progressRows.filter((row) => row.percent > 0 && row.percent < 100).map((row) => titleMap.get(row.title_id)).filter((item): item is TitleRecord => Boolean(item) && (!profile?.kids || item!.age <= 10)), [progressRows, titleMap, profile?.kids])
 
