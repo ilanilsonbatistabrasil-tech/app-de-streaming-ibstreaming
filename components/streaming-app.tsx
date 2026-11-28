@@ -291,7 +291,7 @@ export function StreamingApp() {
   }
 
   useEffect(() => {
-    const { data } = supabase.auth.onAuthStateChange((event) => {
+    const { data } = supabase.auth.onAuthStateChange((event: string) => {
       console.info('[IBStreaming login] Evento Supabase Auth:', event)
       window.setTimeout(() => refreshUser(), 0)
     })
