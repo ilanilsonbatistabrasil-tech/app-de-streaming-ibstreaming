@@ -46,7 +46,9 @@ export function ProfilePicker({ profiles, onSelect, onCreated }: { profiles: Pro
         })
         if (pinError) {
           console.error('[IBStreaming profiles] Falha ao salvar PIN:', pinError)
-          setError('O perfil foi criado, mas o PIN não pôde ser salvo. Configure-o novamente antes de usar a proteção parental.')
+          setError('O perfil foi criado, mas o PIN não pôde ser salvo. Selecione o perfil na lista e configure o PIN novamente.')
+          onCreated()
+          return
         }
       }
 
